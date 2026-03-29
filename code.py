@@ -456,8 +456,24 @@ tab_live, tab_csv, tab_ml, tab_stats, tab_mc, tab_anomaly, tab_summary = st.tabs
     "🎲 Monte Carlo", "🔍 Anomaly Detection", "📋 Summary"
 ])
 
+if "active_stock" not in st.session_state:
+    st.session_state["active_stock"] = "Stock 1"
+
+def render_stock_selector(tab_key):
+    st.markdown("**Stock Selector**")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Stock 1", key=f"sel_stock1_{tab_key}", use_container_width=True):
+            st.session_state["active_stock"] = "Stock 1"
+    with c2:
+        if st.button("Stock 2", key=f"sel_stock2_{tab_key}", use_container_width=True):
+            st.session_state["active_stock"] = "Stock 2"
+    st.caption(f"Currently viewing: **{st.session_state['active_stock']}**")
+    return st.session_state["active_stock"]
+
 with tab_live:
     st.markdown('<div class="section-header">Real-Time Interactive Price Chart</div>', unsafe_allow_html=True)
+    active_stock = render_stock_selector("live")
 
     if not YFINANCE_AVAILABLE:
         st.error("yfinance not installed. Run: pip install yfinance then restart the app.")
@@ -543,6 +559,7 @@ with tab_live:
 
 with tab_csv:
     st.markdown('<div class="section-header">CSV Upload & Technical Analysis</div>', unsafe_allow_html=True)
+    active_stock = render_stock_selector("csv")
     st.markdown(
         '<div class="info-box">'
         '<b>📂 Upload your stock CSV</b> with columns: Date, Open, High, Low, Close, Volume. '
@@ -560,7 +577,6 @@ with tab_csv:
 
     uploaded_file_1 = st.file_uploader("Upload Stock 1 CSV", type="csv", key="csv_stock_1")
     uploaded_file_2 = st.file_uploader("Upload Stock 2 CSV (optional, for comparison)", type="csv", key="csv_stock_2")
-    active_stock = st.radio("Select stock view", ["Stock 1", "Stock 2"], horizontal=True)
 
     active_uploaded_file = uploaded_file_1 if active_stock == "Stock 1" else uploaded_file_2
     uploaded_file = active_uploaded_file if active_uploaded_file else uploaded_file_1
@@ -875,6 +891,7 @@ with tab_csv:
 
 with tab_ml:
     st.markdown('<div class="section-header">Machine Learning: Next-Day Price Prediction</div>', unsafe_allow_html=True)
+    active_stock = render_stock_selector("ml")
     st.markdown(
         '<div class="info-box">'
         '<b>🤖 How does this work?</b> We train a Linear Regression model on the stock\'s past prices, '
@@ -975,6 +992,7 @@ with tab_ml:
 
 with tab_stats:
     st.markdown('<div class="section-header">Statistical & Probability Analysis</div>', unsafe_allow_html=True)
+    active_stock = render_stock_selector("stats")
     st.markdown(
         '<div class="info-box">'
         '<b>📈 Deep dive into the numbers.</b> This tab shows how the stock\'s daily returns '
@@ -1078,6 +1096,7 @@ with tab_stats:
 
 with tab_mc:
     st.markdown('<div class="section-header">Monte Carlo Simulation</div>', unsafe_allow_html=True)
+    active_stock = render_stock_selector("mc")
 
     st.markdown(
         '<div class="info-box">'
@@ -1267,6 +1286,7 @@ with tab_mc:
 with tab_anomaly:
     st.markdown('<div class="section-header">Anomaly Detection using Isolation Forest</div>',
                 unsafe_allow_html=True)
+    active_stock = render_stock_selector("anomaly")
 
     st.markdown(
         '<div class="info-box">'
@@ -1429,6 +1449,7 @@ with tab_anomaly:
 with tab_summary:
     st.markdown('<div class="section-header">📋 Executive Summary Report</div>',
                 unsafe_allow_html=True)
+    active_stock = render_stock_selector("summary")
 
     stock1_df = None
     stock2_df = None

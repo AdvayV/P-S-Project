@@ -28,6 +28,7 @@ A **Streamlit-based stock analysis dashboard** that combines probability & stati
 - **Modern UI:** Vibrant gradient headers, glassmorphism-style info boxes, and interactive metric cards with hover effects.
 - **Beginner-Friendly:** Each tab includes "explain-boxes" (marked with 🔰) that clarify complex finance and statistics concepts in plain English.
 - **Visual Feedback:** Emoji-labeled tabs and color-coded signals (🟢 Bullish, 🔴 Bearish, 🟡 Neutral) for intuitive results.
+- **Dual-Stock Workflow:** Upload 2 CSVs and switch between **Stock 1 / Stock 2** from selector buttons available on every analysis tab.
 
 ---
 
@@ -71,10 +72,14 @@ streamlit run generate_csv.py
 
 ### Tab 2: CSV Analysis
 
-**Purpose:** Upload a stock CSV file for in-depth analysis.
+**Purpose:** Upload one or two stock CSV files and run in-depth analysis on the selected stock.
 
 **Features:**
-- CSV file uploader with auto-detection of date and numeric columns
+- Dual CSV upload:
+  - **Stock 1 CSV** (primary)
+  - **Stock 2 CSV** (optional, for side-by-side comparison in Summary)
+- Stock selector buttons (**Stock 1 / Stock 2**) to choose which dataset feeds all analysis tabs
+- CSV auto-detection of date and numeric columns
 - Data cleaning and feature engineering:
   - `Daily_Return` = percentage change of Close price
   - `Volatility_10` = 10-day rolling standard deviation of returns
@@ -103,6 +108,7 @@ streamlit run generate_csv.py
 **Purpose:** Predict the next day's closing price using Linear Regression.
 
 **Features:**
+- Uses the currently selected stock from the global Stock 1 / Stock 2 selector
 - Adjustable train/test split ratio (10%–40% test set)
 - **Model Training:** Linear Regression on 8 features:
   - Open, High, Low, Close, Volume
@@ -123,6 +129,7 @@ streamlit run generate_csv.py
 **Purpose:** Deep statistical analysis of the stock's return distribution.
 
 **Features:**
+- Uses the currently selected stock from the global Stock 1 / Stock 2 selector
 - **Descriptive Statistics Table** — Mean, Std Dev, Min, Max, Quartiles, Skewness, Kurtosis
 - **Histogram of Daily Returns** — 60-bin histogram with Mean and Median vertical lines
 - **Box Plot** — Shows quartiles, median, and outlier detection
@@ -139,6 +146,7 @@ streamlit run generate_csv.py
 **Purpose:** Simulate thousands of possible future price scenarios using random sampling.
 
 **Features:**
+- Uses the currently selected stock from the global Stock 1 / Stock 2 selector
 - **Configurable Parameters:**
   - Number of simulations (100 – 10,000)
   - Forecast horizon (5 – 252 trading days)
@@ -170,6 +178,7 @@ streamlit run generate_csv.py
 **Purpose:** Identify statistically unusual trading days using machine learning.
 
 **Features:**
+- Uses the currently selected stock from the global Stock 1 / Stock 2 selector
 - **Algorithm:** Isolation Forest (scikit-learn ensemble method)
 - **Configurable Parameters:**
   - Expected Anomaly Rate (1% – 10%)
@@ -207,6 +216,16 @@ streamlit run generate_csv.py
    - **30-Day Mini Fan Chart:** A compact MC simulation over the next 30 days with the ML prediction plotted on Day 1 to show where the regression sits within the probability fan.
    - **Risk-Reward Summary:** Best-case (95th), Worst-case (5th), and the ML uncertainty margin (RMSE).
 8. **Methods Used Table** — Detailed mapping of techniques to P&S concepts.
+9. **Dual-Stock Investor Pick (New!)** — When both CSVs are uploaded:
+   - Computes Health/Behavior score for **Stock 1** and **Stock 2**
+   - Shows side-by-side Total Return and Win Rate
+   - Highlights a **Better Pick** based on higher Health score
+10. **Appendix: Plain-English Glossary (New!)** — Beginner-friendly explanations of:
+   - Rolling Mean, Std Dev, 68% band, Percentiles
+   - Linear Regression, R², RSI, Support/Resistance
+   - Monte Carlo terms (probability of profit, confidence bands)
+   - Isolation Forest anomaly logic and anomaly score
+   - Risk terms (VaR, skewness, kurtosis) and Health score components
 
 ---
 
