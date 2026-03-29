@@ -271,6 +271,8 @@ def compute_rsi(series, period=14):
     return 100 - (100 / (1 + rs))
 
 def load_and_clean_csv(uploaded_file):
+    if hasattr(uploaded_file, "seek"):
+        uploaded_file.seek(0)
     df = pd.read_csv(uploaded_file)
     if "Date" not in df.columns and df.iloc[0].iloc[0] == "Date":
         df.columns = df.iloc[0]
@@ -298,6 +300,57 @@ def add_features(df):
     df["Close_next"]    = df["Close"].shift(-1)
     df["Price_Change"]  = df["Close_next"] - df["Close"]
     return df
+
+def compute_health_snapshot(df):
+    returns = df["Daily_Return"].dropna()
+    if returns.empty or len(df) < 2:
+        return {
+            "health_score": 0.0,
+            "health_word": "Weak",
+            "health_color": "#e63946",
+            "total_return": 0.0,
+            "win_rate": 0.0,
+        }
+
+    start_price = df["Close"].iloc[0]
+    end_price = df["Close"].iloc[-1]
+    total_return = ((end_price - start_price) / start_price) * 100
+    win_rate = (returns > 0).mean() * 100
+
+    df_t = df[["Close"]].dropna().copy()
+    df_t["i"] = np.arange(len(df_t))
+    lr = LinearRegression().fit(df_t[["i"]], df_t["Close"])
+    r2 = lr.score(df_t[["i"]], df_t["Close"])
+
+    latest_rsi = df["RSI_14"].dropna().iloc[-1] if not df["RSI_14"].dropna().empty else 50
+    avg_vol = df["Volatility_10"].mean()
+    rec_vol = df["Volatility_10"].iloc[-10:].mean() if len(df) >= 10 else avg_vol
+
+    trend_score = min(max((total_return + 30) / 60 * 100, 0), 100)
+    rsi_score = max(100 - abs(latest_rsi - 50) * 2, 0)
+    wr_score = win_rate
+    vol_ratio = rec_vol / avg_vol if avg_vol > 0 else 1
+    vol_score = max(0, 100 - abs(vol_ratio - 1) * 200)
+    r2_sc = r2 * 100
+    health_score = min(max((trend_score + rsi_score + wr_score + vol_score + r2_sc) / 5, 0), 100)
+
+    if health_score >= 65:
+        health_word = "Healthy"
+        health_color = "#00a86b"
+    elif health_score >= 40:
+        health_word = "Mixed"
+        health_color = "#ff9800"
+    else:
+        health_word = "Weak"
+        health_color = "#e63946"
+
+    return {
+        "health_score": health_score,
+        "health_word": health_word,
+        "health_color": health_color,
+        "total_return": total_return,
+        "win_rate": win_rate,
+    }
 
 def build_live_chart(hist, date_col, chart_style, ticker):
     UP   = "#00a86b"
@@ -505,7 +558,12 @@ with tab_csv:
         'Think of it as a weather forecast — but for stock prices.</div>',
         unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader("Upload stock CSV", type="csv")
+    uploaded_file_1 = st.file_uploader("Upload Stock 1 CSV", type="csv", key="csv_stock_1")
+    uploaded_file_2 = st.file_uploader("Upload Stock 2 CSV (optional, for comparison)", type="csv", key="csv_stock_2")
+    active_stock = st.radio("Select stock view", ["Stock 1", "Stock 2"], horizontal=True)
+
+    active_uploaded_file = uploaded_file_1 if active_stock == "Stock 1" else uploaded_file_2
+    uploaded_file = active_uploaded_file if active_uploaded_file else uploaded_file_1
 
     if uploaded_file:
         df, numeric_cols = load_and_clean_csv(uploaded_file)
@@ -899,7 +957,7 @@ with tab_ml:
         diff       = last_pred - last_close
 
         # Store ML results for Summary tab
-        st.session_state["ml_results"] = {
+        st.session_state[f"ml_results_{active_stock}"] = {
             "last_pred": last_pred,
             "last_close": last_close,
             "rmse": rmse,
@@ -1169,7 +1227,7 @@ with tab_mc:
             best5       = np.percentile(final_prices, 95)
 
             # Store Monte Carlo results for Summary tab
-            st.session_state["mc_results"] = {
+            st.session_state[f"mc_results_{active_stock}"] = {
                 "prob_profit": prob_profit,
                 "expected": expected,
                 "worst5": worst5,
@@ -1371,6 +1429,43 @@ with tab_anomaly:
 with tab_summary:
     st.markdown('<div class="section-header">📋 Executive Summary Report</div>',
                 unsafe_allow_html=True)
+
+    stock1_df = None
+    stock2_df = None
+    if "uploaded_file_1" in locals() and uploaded_file_1:
+        stock1_df, _ = load_and_clean_csv(uploaded_file_1)
+        stock1_df = add_features(stock1_df)
+    if "uploaded_file_2" in locals() and uploaded_file_2:
+        stock2_df, _ = load_and_clean_csv(uploaded_file_2)
+        stock2_df = add_features(stock2_df)
+
+    if stock1_df is not None and stock2_df is not None:
+        s1 = compute_health_snapshot(stock1_df)
+        s2 = compute_health_snapshot(stock2_df)
+        better = "Stock 1" if s1["health_score"] >= s2["health_score"] else "Stock 2"
+        better_color = s1["health_color"] if better == "Stock 1" else s2["health_color"]
+        st.markdown(
+            f'<div class="analysis-card">'
+            f'<div class="ac-header">⚖️ Stock Comparison (Investor Pick)</div>'
+            f'<div class="ac-row"><span>Stock 1 Health Score</span><span class="ac-val" style="color:{s1["health_color"]};">{s1["health_score"]:.0f}/100 · {s1["health_word"]}</span></div>'
+            f'<div class="ac-row"><span>Stock 2 Health Score</span><span class="ac-val" style="color:{s2["health_color"]};">{s2["health_score"]:.0f}/100 · {s2["health_word"]}</span></div>'
+            f'<div class="ac-row"><span>Stock 1 Total Return</span><span class="ac-val">{s1["total_return"]:+.2f}%</span></div>'
+            f'<div class="ac-row"><span>Stock 2 Total Return</span><span class="ac-val">{s2["total_return"]:+.2f}%</span></div>'
+            f'<div class="ac-row"><span>Stock 1 Win Rate</span><span class="ac-val">{s1["win_rate"]:.1f}%</span></div>'
+            f'<div class="ac-row"><span>Stock 2 Win Rate</span><span class="ac-val">{s2["win_rate"]:.1f}%</span></div>'
+            f'<div class="ac-row"><span>Better Pick (by Health Score)</span><span class="ac-val" style="color:{better_color};">{better}</span></div>'
+            f'</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            '<div class="explain-box">'
+            '<b>🔰 How to use this:</b> The better pick is chosen by the higher Health Score '
+            '(trend, momentum, win rate, volatility stability, and trend fit). '
+            'If scores are close, compare risk (volatility and VaR) before deciding.'
+            '</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown("---")
 
     if uploaded_file:
         # ── Compute all summary data up front ─────────────────────────────
@@ -1622,7 +1717,7 @@ with tab_summary:
             next_p = end_price; diff_p = 0; rmse_s = 0; r2_ml = 0
             ml_signal = "⚠️ Not enough data"; ml_confidence = "N/A"
 
-        _mc = st.session_state.get("mc_results")
+        _mc = st.session_state.get(f"mc_results_{active_stock}")
 
         comp1, comp2 = st.columns(2)
 
@@ -1720,7 +1815,7 @@ with tab_summary:
         st.markdown("---")
 
         # ── 6. COMBINED ML + MC FORECAST (preserved) ─────────────────────
-        _ml_r = st.session_state.get("ml_results")
+        _ml_r = st.session_state.get(f"ml_results_{active_stock}")
 
         if _ml_r and _mc:
             st.markdown('<div class="section-header">🔮 Combined Forecast (ML + Monte Carlo)</div>',
