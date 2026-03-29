@@ -29,6 +29,7 @@ A **Streamlit-based stock analysis dashboard** that combines probability & stati
 - **Beginner-Friendly:** Each tab includes "explain-boxes" (marked with 🔰) that clarify complex finance and statistics concepts in plain English.
 - **Visual Feedback:** Emoji-labeled tabs and color-coded signals (🟢 Bullish, 🔴 Bearish, 🟡 Neutral) for intuitive results.
 - **Dual-Stock Workflow:** Upload 2 CSVs and switch between **Stock 1 / Stock 2** from selector buttons available on every analysis tab.
+- **Smart Currency Display:** Prices auto-switch to **₹ for Indian tickers** (`.NS`, `.BO`, `^NSEI`, `^BSESN`) and **$ for US/other tickers**.
 
 ---
 

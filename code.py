@@ -270,6 +270,21 @@ def compute_rsi(series, period=14):
     rs    = gain / loss.replace(0, np.nan)
     return 100 - (100 / (1 + rs))
 
+def detect_currency_symbol(identifier):
+    val = (identifier or "").upper().strip()
+    if ".NS" in val or ".BO" in val or "^NSEI" in val or "^BSESN" in val:
+        return "₹"
+    return "$"
+
+def detect_currency_symbol_from_file(uploaded_file):
+    if uploaded_file is None:
+        return "$"
+    filename = getattr(uploaded_file, "name", "")
+    return detect_currency_symbol(filename)
+
+def fmt_price(value, symbol):
+    return f"{symbol}{value:,.2f}"
+
 def load_and_clean_csv(uploaded_file):
     if hasattr(uploaded_file, "seek"):
         uploaded_file.seek(0)
@@ -519,6 +534,7 @@ with tab_live:
         def fetch_and_draw(ticker, period, interval, style):
             live_status.info(f"Fetching {ticker.upper()} ...")
             try:
+                curr_symbol = detect_currency_symbol(ticker)
                 hist = yf.Ticker(ticker.strip()).history(period=period, interval=interval)
                 if hist.empty:
                     live_status.error("No data. Check ticker or try a different interval.")
@@ -534,10 +550,10 @@ with tab_live:
 
                 with live_metrics.container():
                     m1, m2, m3, m4, m5 = st.columns(5)
-                    m1.metric("Last Price",   f"${latest:.2f}", f"{change:+.2f}")
+                    m1.metric("Last Price",   fmt_price(latest, curr_symbol), f"{change:+.2f}")
                     m2.metric("Change %",     f"{pct_chg:+.2f}%")
-                    m3.metric("Period High",  f"${hist['High'].max():.2f}")
-                    m4.metric("Period Low",   f"${hist['Low'].min():.2f}")
+                    m3.metric("Period High",  fmt_price(hist['High'].max(), curr_symbol))
+                    m4.metric("Period Low",   fmt_price(hist['Low'].min(), curr_symbol))
                     m5.metric("Total Volume", f"{int(hist['Volume'].sum()):,}")
 
                 fig = build_live_chart(hist, date_col, style, ticker)
@@ -580,6 +596,7 @@ with tab_csv:
 
     active_uploaded_file = uploaded_file_1 if active_stock == "Stock 1" else uploaded_file_2
     uploaded_file = active_uploaded_file if active_uploaded_file else uploaded_file_1
+    currency_symbol = detect_currency_symbol_from_file(uploaded_file)
 
     if uploaded_file:
         df, numeric_cols = load_and_clean_csv(uploaded_file)
@@ -611,7 +628,7 @@ with tab_csv:
         q1.metric("Total Days Analyzed", len(df))
         q2.metric("Historical Win Rate", f"{hist_prob_gain:.1f}%")
         q3.metric("95% Prob. Max Drop", f"{var_95:.2f}%")
-        q4.metric("Avg Close", f"{df['Close'].mean():.2f}")
+        q4.metric("Avg Close", fmt_price(df['Close'].mean(), currency_symbol))
         q5.metric("Avg Daily Return", f"{df['Daily_Return'].mean()*100:.3f}%")
 
         st.subheader("Top Price Change Days")
@@ -619,8 +636,8 @@ with tab_csv:
         if direction in ("Max Gains", "Both"):
             gains = heapq.nlargest(N, enumerate(df_ml["Price_Change"]), key=lambda x: x[1])
             gain_data = [[df_ml.iloc[i]["Date"].strftime("%Y-%m-%d"),
-                          f"{df_ml.iloc[i]['Close']:.2f}",
-                          f"{df_ml.iloc[i]['Close_next']:.2f}",
+                          fmt_price(df_ml.iloc[i]["Close"], currency_symbol),
+                          fmt_price(df_ml.iloc[i]["Close_next"], currency_symbol),
                           f"+{c:.2f}"] for i, c in gains]
             with col_g:
                 st.markdown("**Biggest Gains**")
@@ -630,8 +647,8 @@ with tab_csv:
         if direction in ("Max Losses", "Both"):
             losses = heapq.nsmallest(N, enumerate(df_ml["Price_Change"]), key=lambda x: x[1])
             loss_data = [[df_ml.iloc[i]["Date"].strftime("%Y-%m-%d"),
-                          f"{df_ml.iloc[i]['Close']:.2f}",
-                          f"{df_ml.iloc[i]['Close_next']:.2f}",
+                          fmt_price(df_ml.iloc[i]["Close"], currency_symbol),
+                          fmt_price(df_ml.iloc[i]["Close_next"], currency_symbol),
                           f"{c:.2f}"] for i, c in losses]
             with col_l:
                 st.markdown("**Biggest Losses**")
@@ -650,9 +667,9 @@ with tab_csv:
                     profit = (best["Close"] - buy_p) * (inv_capital / buy_p)
                     pct_p  = ((best["Close"] - buy_p) / buy_p) * 100
                     e1, e2, e3 = st.columns(3)
-                    e1.metric("Purchase Price",       f"{buy_p:.2f}",       f"on {buy_d.date()}")
-                    e2.metric("Best Exit Price",      f"{best['Close']:.2f}",f"on {best['Date'].date()}")
-                    e3.metric("Max Potential Profit", f"{profit:,.2f}",      f"{pct_p:.2f}%")
+                    e1.metric("Purchase Price",       fmt_price(buy_p, currency_symbol),       f"on {buy_d.date()}")
+                    e2.metric("Best Exit Price",      fmt_price(best['Close'], currency_symbol),f"on {best['Date'].date()}")
+                    e3.metric("Max Potential Profit", fmt_price(profit, currency_symbol),      f"{pct_p:.2f}%")
                 else:
                     st.info("No future data after selected date.")
             else:
@@ -925,7 +942,7 @@ with tab_ml:
         r2   = r2_score(y_test, y_pred)
 
         pm1, pm2, pm3 = st.columns(3)
-        pm1.metric("RMSE (lower = better)",  f"{rmse:.2f}")
+        pm1.metric("RMSE (lower = better)",  fmt_price(rmse, currency_symbol))
         pm2.metric("R2 Score (1 = perfect)", f"{r2:.4f}")
         pm3.metric("Training samples",       len(X_train))
 
@@ -984,8 +1001,8 @@ with tab_ml:
 
         st.subheader("Tomorrow's Predicted Close")
         n1, n2, n3 = st.columns(3)
-        n1.metric("Today's Close",          f"{last_close:.2f}")
-        n2.metric("Predicted Next Close",   f"{last_pred:.2f}", f"{diff:+.2f}")
+        n1.metric("Today's Close",          fmt_price(last_close, currency_symbol))
+        n2.metric("Predicted Next Close",   fmt_price(last_pred, currency_symbol), f"{diff:+.2f}")
         n3.metric("Signal", "Likely UP" if diff > 0 else "Likely DOWN")
     else:
         st.info("Upload a CSV in the CSV Analysis tab first.")
@@ -1224,11 +1241,11 @@ with tab_mc:
                 hovertemplate="Price: %{x:.2f}<br>Count: %{y}<extra></extra>",
             ))
             fig_dist.add_vline(x=last_close, line_color="#ff9800", line_width=2,
-                               annotation_text=f"Start: {last_close:.2f}",
+                               annotation_text=f"Start: {fmt_price(last_close, currency_symbol)}",
                                annotation_position="top right")
             fig_dist.add_vline(x=np.median(final_prices), line_color="#ab47bc",
                                line_dash="dash", line_width=1.5,
-                               annotation_text=f"Median: {np.median(final_prices):.2f}",
+                               annotation_text=f"Median: {fmt_price(np.median(final_prices), currency_symbol)}",
                                annotation_position="top left")
             fig_dist.update_layout(
                 **PLOTLY_LAYOUT,
@@ -1259,13 +1276,13 @@ with tab_mc:
             k1, k2, k3, k4 = st.columns(4)
             k1.metric("Prob. of Profit",  f"{prob_profit:.1f}%",
                       help="Percentage of simulations that ended above today's price.")
-            k2.metric("Expected Price",   f"{expected:.2f}",
+            k2.metric("Expected Price",   fmt_price(expected, currency_symbol),
                       f"{((expected - last_close)/last_close)*100:+.2f}%",
                       help="Average price across all simulations.")
-            k3.metric("Best Case (95th)", f"{best5:.2f}",
+            k3.metric("Best Case (95th)", fmt_price(best5, currency_symbol),
                       f"{((best5 - last_close)/last_close)*100:+.2f}%",
                       help="Only 5% of simulations ended above this price.")
-            k4.metric("Worst Case (5th)", f"{worst5:.2f}",
+            k4.metric("Worst Case (5th)", fmt_price(worst5, currency_symbol),
                       f"{((worst5 - last_close)/last_close)*100:+.2f}%",
                       help="Only 5% of simulations ended below this price.")
 
@@ -1569,7 +1586,7 @@ with tab_summary:
             f'</div>'
             f'<div>'
             f'<div class="hero-return-label">Current Price</div>'
-            f'<div class="hero-return" style="font-size:1.6rem;">${end_price:.2f}</div>'
+            f'<div class="hero-return" style="font-size:1.6rem;">{fmt_price(end_price, currency_symbol)}</div>'
             f'</div>'
             f'<div>'
             f'<div class="hero-return-label">Health Score</div>'
@@ -1628,7 +1645,7 @@ with tab_summary:
 
         # ── 3. KEY METRICS ROW ────────────────────────────────────────────
         km1, km2, km3, km4 = st.columns(4)
-        km1.metric("Current Price", f"${end_price:.2f}",
+        km1.metric("Current Price", fmt_price(end_price, currency_symbol),
                    f"{((end_price - start_price)/start_price*100):+.1f}% overall")
         km2.metric("Win Rate", f"{win_rate_s:.1f}%",
                    "of days were positive")
@@ -1661,9 +1678,9 @@ with tab_summary:
             st.markdown(
                 '<div class="analysis-card">'
                 '<div class="ac-header">🔒 Support & Resistance (60-day)</div>'
-                f'<div class="ac-row"><span>Support (Low)</span><span class="ac-val">${support_s:.2f}</span></div>'
+                f'<div class="ac-row"><span>Support (Low)</span><span class="ac-val">{fmt_price(support_s, currency_symbol)}</span></div>'
                 f'<div class="ac-row"><span>Distance to Support</span><span class="ac-val">{dist_sup:.1f}% below</span></div>'
-                f'<div class="ac-row"><span>Resistance (High)</span><span class="ac-val">${resist_s:.2f}</span></div>'
+                f'<div class="ac-row"><span>Resistance (High)</span><span class="ac-val">{fmt_price(resist_s, currency_symbol)}</span></div>'
                 f'<div class="ac-row"><span>Distance to Resistance</span><span class="ac-val">{dist_res:.1f}% above</span></div>'
                 f'<div class="ac-row"><span>Position</span><span class="ac-val">{"Near Resistance ⚠️" if dist_res < dist_sup else "Near Support ✅"}</span></div>'
                 '</div>',
@@ -1700,7 +1717,7 @@ with tab_summary:
                 f'<div class="ac-row"><span>Interpretation</span><span class="ac-val">{skew_word}</span></div>'
                 f'<div class="ac-row"><span>Kurtosis</span><span class="ac-val">{kurt_val:.4f}</span></div>'
                 f'<div class="ac-row"><span>Interpretation</span><span class="ac-val">{kurt_word}</span></div>'
-                f'<div class="ac-row"><span>68% Range (latest)</span><span class="ac-val">${df["Expected_Low_68"].iloc[-1]:.2f} — ${df["Expected_High_68"].iloc[-1]:.2f}</span></div>'
+                f'<div class="ac-row"><span>68% Range (latest)</span><span class="ac-val">{fmt_price(df["Expected_Low_68"].iloc[-1], currency_symbol)} — {fmt_price(df["Expected_High_68"].iloc[-1], currency_symbol)}</span></div>'
                 '</div>',
                 unsafe_allow_html=True)
 
@@ -1750,13 +1767,13 @@ with tab_summary:
                 '<div class="mc-subtitle">Learns patterns from historical features to predict tomorrow</div>'
                 f'<div class="mc-row"><span class="mc-icon">🎯</span><div><div class="mc-label">Predicted Next Close</div>'
                 f'<div class="mc-desc">Based on 8 features (price, volume, RSI, bands)</div></div>'
-                f'<span class="mc-value">${next_p:.2f}</span></div>'
+                f'<span class="mc-value">{fmt_price(next_p, currency_symbol)}</span></div>'
                 f'<div class="mc-row"><span class="mc-icon">📊</span><div><div class="mc-label">Accuracy (R²)</div>'
                 f'<div class="mc-desc">How well the model fits test data (1.0 = perfect)</div></div>'
                 f'<span class="mc-value">{r2_ml:.4f}</span></div>'
                 f'<div class="mc-row"><span class="mc-icon">📏</span><div><div class="mc-label">Error Margin (RMSE)</div>'
                 f'<div class="mc-desc">Average error in price units</div></div>'
-                f'<span class="mc-value">±${rmse_s:.2f}</span></div>'
+                f'<span class="mc-value">{fmt_price(rmse_s, currency_symbol)}</span></div>'
                 f'<div class="mc-row"><span class="mc-icon">🚦</span><div><div class="mc-label">Signal</div>'
                 f'<div class="mc-desc">Confidence: {ml_confidence}</div></div>'
                 f'<span class="mc-value">{ml_signal}</span></div>'
@@ -1796,13 +1813,13 @@ with tab_summary:
                     f'<span class="mc-value">{_mc["prob_profit"]:.1f}%</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">🎯</span><div><div class="mc-label">Expected Price</div>'
                     f'<div class="mc-desc">Average across all simulated outcomes</div></div>'
-                    f'<span class="mc-value">${_mc["expected"]:.2f}</span></div>'
+                    f'<span class="mc-value">{fmt_price(_mc["expected"], currency_symbol)}</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">🚀</span><div><div class="mc-label">Best Case (95th)</div>'
                     f'<div class="mc-desc">Only 5% of simulations beat this</div></div>'
-                    f'<span class="mc-value">${_mc["best5"]:.2f}</span></div>'
+                    f'<span class="mc-value">{fmt_price(_mc["best5"], currency_symbol)}</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">⚠️</span><div><div class="mc-label">Worst Case (5th)</div>'
                     f'<div class="mc-desc">Only 5% of simulations were worse</div></div>'
-                    f'<span class="mc-value">${_mc["worst5"]:.2f}</span></div>'
+                    f'<span class="mc-value">{fmt_price(_mc["worst5"], currency_symbol)}</span></div>'
                     '</div>',
                     unsafe_allow_html=True)
             else:
@@ -1845,12 +1862,12 @@ with tab_summary:
             consensus = (_ml_r["last_pred"] + _mc["expected"]) / 2
             fc1, fc2, fc3 = st.columns(3)
             fc1.metric("ML Predicted Next Close",
-                       f"{_ml_r['last_pred']:.2f}", f"{_ml_r['diff']:+.2f} from current")
+                       fmt_price(_ml_r['last_pred'], currency_symbol), f"{_ml_r['diff']:+.2f} from current")
             fc2.metric("MC Expected Price",
-                       f"{_mc['expected']:.2f}",
+                       fmt_price(_mc['expected'], currency_symbol),
                        f"{((_mc['expected'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
             fc3.metric("Consensus Forecast",
-                       f"{consensus:.2f}",
+                       fmt_price(consensus, currency_symbol),
                        f"{((consensus - _ml_r['last_close']) / _ml_r['last_close'] * 100):+.2f}%",
                        help="Average of ML prediction and MC expected price.")
 
@@ -1930,13 +1947,13 @@ with tab_summary:
             # Risk-Reward row
             st.markdown("**Risk-Reward Summary**")
             rr1, rr2, rr3, rr4 = st.columns(4)
-            rr1.metric("Best Case (95th)", f"{_mc['best5']:.2f}",
+            rr1.metric("Best Case (95th)", fmt_price(_mc['best5'], currency_symbol),
                        f"{((_mc['best5'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
-            rr2.metric("Expected Case", f"{consensus:.2f}",
+            rr2.metric("Expected Case", fmt_price(consensus, currency_symbol),
                        f"{((consensus - _ml_r['last_close']) / _ml_r['last_close'] * 100):+.2f}%")
-            rr3.metric("Worst Case (5th)", f"{_mc['worst5']:.2f}",
+            rr3.metric("Worst Case (5th)", fmt_price(_mc['worst5'], currency_symbol),
                        f"{((_mc['worst5'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
-            rr4.metric("Uncertainty (RMSE)", f"±{_ml_r['rmse']:.2f}",
+            rr4.metric("Uncertainty (RMSE)", fmt_price(_ml_r['rmse'], currency_symbol),
                        help="ML model typical prediction error in price units.")
 
             st.markdown("---")
@@ -1945,7 +1962,7 @@ with tab_summary:
         # Build verdict
         verdict_parts = []
         verdict_parts.append(f"Over the last <b>{len(df)} trading days</b>, this stock moved from "
-                             f"<b>${start_price:.2f}</b> to <b>${end_price:.2f}</b>, "
+                             f"<b>{fmt_price(start_price, currency_symbol)}</b> to <b>{fmt_price(end_price, currency_symbol)}</b>, "
                              f"a total return of <b>{total_return:+.2f}%</b>.")
 
         if total_return > 10:
@@ -1970,15 +1987,15 @@ with tab_summary:
             verdict_parts.append("Recent volatility is <b>lower than average</b> — the stock has been relatively calm.")
 
         if ml_available and diff_p > 0:
-            verdict_parts.append(f"The ML model predicts the next close at <b>${next_p:.2f}</b> (slightly up), "
+            verdict_parts.append(f"The ML model predicts the next close at <b>{fmt_price(next_p, currency_symbol)}</b> (slightly up), "
                                  f"with R² = {r2_ml:.3f} accuracy.")
         elif ml_available:
-            verdict_parts.append(f"The ML model predicts the next close at <b>${next_p:.2f}</b> (slightly down), "
+            verdict_parts.append(f"The ML model predicts the next close at <b>{fmt_price(next_p, currency_symbol)}</b> (slightly down), "
                                  f"with R² = {r2_ml:.3f} accuracy.")
 
         if _mc:
             verdict_parts.append(f"Monte Carlo simulations show a <b>{_mc['prob_profit']:.0f}% chance of profit</b>, "
-                                 f"with the expected price at <b>${_mc['expected']:.2f}</b>.")
+                                 f"with the expected price at <b>{fmt_price(_mc['expected'], currency_symbol)}</b>.")
 
         verdict_parts.append("<br><br>⚠️ <i>This analysis is based purely on historical data and statistics — "
                              "past performance does not guarantee future results. This is not financial advice.</i>")

@@ -98,6 +98,15 @@ if not YFINANCE_AVAILABLE:
     st.error("yfinance is not installed. Run: `pip install yfinance`")
     st.stop()
 
+def detect_currency_symbol(ticker):
+    val = (ticker or "").upper().strip()
+    if ".NS" in val or ".BO" in val or "^NSEI" in val or "^BSESN" in val:
+        return "₹"
+    return "$"
+
+def fmt_price(value, symbol):
+    return f"{symbol}{value:,.2f}"
+
 st.markdown(
     '<div class="explain-box">'
     '<b>🔰 How to use this tool:</b> '
@@ -228,6 +237,7 @@ fetch = st.button("🔍 Fetch Data", type="primary")
 if fetch:
     with st.spinner(f"Fetching {ticker.upper()} data..."):
         try:
+            currency_symbol = detect_currency_symbol(ticker)
             tkr = yf.Ticker(ticker.strip())
             hist = tkr.history(period=period, interval=interval)
 
@@ -264,8 +274,8 @@ if fetch:
             s1.metric("Rows", len(hist))
             s2.metric("Date Range", f"{hist['Date'].iloc[0]} → {hist['Date'].iloc[-1]}")
             if "Close" in hist.columns:
-                s3.metric("Start Price", f"${hist['Close'].iloc[0]:,.2f}")
-                s4.metric("End Price", f"${hist['Close'].iloc[-1]:,.2f}")
+                s3.metric("Start Price", fmt_price(hist['Close'].iloc[0], currency_symbol))
+                s4.metric("End Price", fmt_price(hist['Close'].iloc[-1], currency_symbol))
                 change = ((float(hist['Close'].iloc[-1]) - float(hist['Close'].iloc[0])) /
                           float(hist['Close'].iloc[0])) * 100
                 s5.metric("Total Change", f"{change:+.2f}%")
