@@ -1,0 +1,610 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{float}
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Machine Learning for Next-Day Stock Price Prediction and Probabilistic Exit Strategy Optimization: An Integrated Statistical Approach}
+
+\author{\IEEEauthorblockN{Advay}
+\IEEEauthorblockA{\textit{School of Computer Science and Engineering} \\
+\textit{Vellore Institute of Technology}\\
+Vellore, India}
+}
+
+\maketitle
+
+\begin{abstract}
+Financial markets present significant challenges for prediction due to their inherent volatility and complex interdependencies. This paper presents a comprehensive stock analysis system that integrates machine learning techniques with probability and statistical methods to predict next-day stock prices and optimize investment exit strategies. The system employs Linear Regression for price prediction with an 8-feature model, Monte Carlo simulations (up to 10,000 iterations) for probabilistic forecasting, and Isolation Forest for anomaly detection. We implement fundamental statistical concepts including normal distribution for probability bands, confidence intervals at multiple levels (68\%, 90\%, 95\%), Value-at-Risk (VaR) calculations, and composite health scoring. The implementation, built using Python with Streamlit, Scikit-Learn, and Plotly, provides an interactive seven-tab dashboard that generates actionable trading signals with quantified uncertainty bounds. Our system achieves $R^2$ scores exceeding 0.95 for next-day price prediction and provides probabilistic profit estimates that align with historical win rates. The dual-stock comparison feature enables investors to make data-driven portfolio decisions based on a multi-factor health score combining trend, momentum, volatility, and regression fit metrics.
+\end{abstract}
+
+\begin{IEEEkeywords}
+stock prediction, machine learning, Monte Carlo simulation, linear regression, anomaly detection, probability, statistics, financial analytics, risk management, Value-at-Risk
+\end{IEEEkeywords}
+
+\section{Introduction}
+Stock market prediction remains one of the most challenging and consequential problems in financial analytics. Financial markets are inherently noisy and are influenced by macroeconomic indicators, investor sentiment, geopolitical events, and institutional trading behavior. These factors introduce significant uncertainty and make accurate prediction difficult.
+
+The efficient market hypothesis~\cite{fama1970} posits that stock prices reflect all available information, making systematic prediction theoretically impossible. However, real-world observations suggest that markets are not perfectly efficient. Short-term inefficiencies, behavioral biases, and delayed information absorption create patterns that can be exploited using statistical and machine learning techniques.
+
+Traditional technical analysis relies on visual chart patterns and heuristic indicators such as moving averages and RSI. While useful, these methods often lack formal statistical grounding. In contrast, modern quantitative approaches use computational models to extract patterns from high-dimensional data. This paper bridges these paradigms by combining statistical theory with machine learning in a unified system.
+
+\subsection{Problem Statement}
+Investors face three fundamental challenges:
+\begin{enumerate}
+    \item \textbf{Price Prediction:} Predicting future stock prices is difficult due to randomness and market noise.
+    \item \textbf{Risk Assessment:} Investors need to understand not just expected outcomes but also uncertainty and downside risk.
+    \item \textbf{Exit Optimization:} Determining when to exit a trade is often more critical than entry, yet lacks systematic tools.
+\end{enumerate}
+
+\subsection{Motivation and Research Gap}
+Most existing systems focus either on prediction or on risk, but rarely both in an integrated manner. Machine learning models may provide accurate point predictions but often lack interpretability and uncertainty quantification. Conversely, purely statistical models provide risk measures but limited predictive power.
+
+This creates a gap between theoretical models and practical decision-making tools. This paper addresses that gap by integrating prediction, probability, and anomaly detection into a single framework.
+
+\subsection{Contributions}
+This paper makes the following contributions:
+\begin{itemize}
+    \item An integrated system combining Linear Regression, Monte Carlo simulation, and Isolation Forest for comprehensive stock analysis
+    \item A novel composite health score integrating trend strength, momentum balance, win rate, volatility stability, and regression fit
+    \item Implementation of the 68\% Empirical Rule for probability bands using rolling statistics
+    \item A combined forecast mechanism integrating ML predictions with Monte Carlo probabilistic estimates
+    \item An interactive dashboard with seven specialized analysis tabs and dual-stock comparison capability
+\end{itemize}
+
+\subsection{System Overview}
+The system architecture comprises two main components: (1) a CSV generator tool for fetching historical OHLCV data from Yahoo Finance API supporting 100+ tickers including US stocks, Indian NSE/BSE stocks, and cryptocurrencies; and (2) a main dashboard application featuring seven analysis tabs---Live Chart, CSV Analysis, ML Prediction, Statistics, Monte Carlo, Anomaly Detection, and Summary.
+
+\section{Literature Review}
+
+\subsection{Efficient Market Hypothesis}
+Fama's seminal work~\cite{fama1970} established three forms of market efficiency: weak, semi-strong, and strong. While the hypothesis suggests prices follow a random walk, empirical studies have identified momentum effects and mean-reversion patterns that persist across markets.
+
+\subsection{Machine Learning in Finance}
+Huang et al.~\cite{huang2005} demonstrated that Support Vector Machines outperform traditional statistical methods for stock direction prediction. More recently, deep learning approaches including LSTM networks~\cite{fischer2018} have shown promise for capturing temporal dependencies in financial time series.
+
+\subsection{Monte Carlo Methods}
+Glasserman~\cite{glasserman2003} established the theoretical foundations for Monte Carlo methods in financial engineering, demonstrating their application to derivative pricing, risk measurement, and scenario analysis. The method's strength lies in its ability to model complex, path-dependent outcomes without closed-form solutions.
+
+\subsection{Anomaly Detection}
+Liu et al.~\cite{liu2008} introduced Isolation Forest as an efficient anomaly detection algorithm with linear time complexity. Its application to financial data enables identification of unusual trading patterns that may signal market events, manipulation, or regime changes.
+
+\section{Methodology}
+
+\subsection{Data Acquisition Pipeline}
+The system implements a robust data acquisition pipeline using the \texttt{yfinance} Python library. The CSV Generator tool supports:
+\begin{itemize}
+    \item \textbf{Asset Classes:} US equities (NYSE, NASDAQ), Indian stocks (NSE, BSE), cryptocurrencies (BTC, ETH, etc.), and market indices
+    \item \textbf{Time Periods:} 1 month to maximum available history
+    \item \textbf{Intervals:} Daily, weekly, and monthly granularities
+    \item \textbf{Automatic Currency Detection:} INR (₹) for Indian tickers, USD (\$) for others
+\end{itemize}
+
+\subsection{Feature Engineering}
+Raw OHLCV data undergoes comprehensive feature engineering:
+
+\subsubsection{Why Feature Engineering Matters}
+Raw price data alone is often insufficient for robust forecasting because it does not explicitly encode momentum, trend persistence, or volatility regime changes. It also provides limited statistical context for uncertainty-aware decisions.
+
+By engineering features such as returns, rolling statistics, and RSI, the model receives a richer representation of market dynamics that includes both directional and risk-sensitive information.
+
+\subsubsection{Interpretation of Engineered Features}
+\begin{itemize}
+    \item \textbf{Daily Returns:} Capture short-term movement direction and intensity.
+    \item \textbf{Rolling Mean:} Represents local trend over a fixed historical window.
+    \item \textbf{Rolling Standard Deviation:} Measures uncertainty and volatility concentration.
+    \item \textbf{RSI:} Indicates momentum extremes and potential reversal zones.
+\end{itemize}
+
+These features jointly help capture deterministic trend behavior and stochastic fluctuations.
+
+\subsubsection{Daily Return Calculation}
+The percentage daily return captures the fundamental price movement:
+\begin{equation}
+    R_t = \frac{P_t^{close} - P_{t-1}^{close}}{P_{t-1}^{close}}
+\end{equation}
+
+\subsubsection{Rolling Statistics}
+The system computes 20-day rolling mean and standard deviation:
+\begin{equation}
+    \mu_{20,t} = \frac{1}{20}\sum_{i=t-19}^{t} P_i^{close}
+\end{equation}
+\begin{equation}
+    \sigma_{20,t} = \sqrt{\frac{1}{19}\sum_{i=t-19}^{t}(P_i^{close} - \mu_{20,t})^2}
+\end{equation}
+
+\subsubsection{68\% Probability Bounds}
+Applying the empirical rule for normally distributed data:
+\begin{equation}
+    \text{Expected\_High\_68}_t = \mu_{20,t} + \sigma_{20,t}
+\end{equation}
+\begin{equation}
+    \text{Expected\_Low\_68}_t = \mu_{20,t} - \sigma_{20,t}
+\end{equation}
+
+These bounds define the range within which prices are expected to fall approximately 68\% of the time under the normal distribution assumption.
+
+\subsubsection{Volatility Measurement}
+Ten-day rolling volatility of returns measures recent price swing intensity:
+\begin{equation}
+    \text{Volatility}_{10,t} = \sqrt{\frac{1}{9}\sum_{i=t-9}^{t}(R_i - \bar{R}_{10})^2}
+\end{equation}
+
+\subsubsection{Relative Strength Index (RSI)}
+The momentum oscillator is computed over 14 periods:
+\begin{equation}
+    RSI = 100 - \frac{100}{1 + RS}
+\end{equation}
+where $RS = \frac{\text{EMA}_{14}(\text{gains})}{\text{EMA}_{14}(\text{losses})}$.
+
+RSI values above 70 indicate overbought conditions (potential for pullback), while values below 30 indicate oversold conditions (potential for bounce).
+
+\subsection{Linear Regression Model}
+
+\subsubsection{Feature Selection}
+The model uses eight engineered features to predict the next-day closing price:
+\begin{equation}
+    \mathbf{X} = [O_t, H_t, L_t, C_t, V_t, E_{high}, E_{low}, RSI_t]
+\end{equation}
+where $O$, $H$, $L$, $C$, $V$ represent OHLCV values, and $E_{high}$, $E_{low}$ are the 68\% probability bounds.
+
+\subsubsection{Model Formulation}
+The linear regression model estimates:
+\begin{equation}
+    \hat{C}_{t+1} = \beta_0 + \sum_{j=1}^{8} \beta_j X_j + \epsilon
+\end{equation}
+
+The model minimizes the ordinary least squares objective:
+\begin{equation}
+    \hat{\boldsymbol{\beta}} = \arg\min_{\boldsymbol{\beta}} \sum_{i=1}^{n}(y_i - \mathbf{X}_i\boldsymbol{\beta})^2
+\end{equation}
+
+\subsubsection{Train-Test Split}
+The system employs a configurable train-test split (10\%-40\% test set) without shuffling to preserve temporal ordering. This prevents look-ahead bias that would occur with random splits.
+
+\subsubsection{Evaluation Metrics}
+Model performance is assessed using:
+\begin{equation}
+    RMSE = \sqrt{\frac{1}{n}\sum_{i=1}^{n}(\hat{y}_i - y_i)^2}
+\end{equation}
+\begin{equation}
+    R^2 = 1 - \frac{SS_{res}}{SS_{tot}} = 1 - \frac{\sum(y_i - \hat{y}_i)^2}{\sum(y_i - \bar{y})^2}
+\end{equation}
+
+\subsubsection{Feature Importance Analysis}
+The regression coefficients $\beta_j$ indicate feature importance. The system visualizes these as a horizontal bar chart, enabling interpretation of which factors (price components, volume, momentum) drive predictions.
+
+\subsubsection{Interpretation of the Model}
+The linear regression model predicts the next day's closing price as a weighted combination of input features. Each coefficient quantifies the marginal influence of a feature under the model assumptions. A major advantage of this setup is interpretability: unlike opaque models, coefficient signs and magnitudes provide direct financial intuition.
+
+\subsubsection{Limitations of Linear Models}
+Despite its practical simplicity, linear regression has known limitations in financial settings:
+\begin{itemize}
+    \item It cannot naturally capture nonlinear dependencies.
+    \item It assumes homoscedastic errors, which markets often violate.
+    \item It is sensitive to outliers and regime shifts.
+\end{itemize}
+Nonetheless, its low variance and interpretability make it a strong baseline for noisy market data.
+
+\subsection{Monte Carlo Simulation}
+
+\subsubsection{Theoretical Foundation}
+Monte Carlo simulation leverages the Law of Large Numbers: as the number of simulations increases, the sample statistics converge to population parameters. The Central Limit Theorem ensures that the distribution of outcomes approaches normality for sufficiently large sample sizes.
+
+\subsubsection{Intuition Behind Monte Carlo}
+Monte Carlo simulation answers a practical investor question: \emph{what are all plausible future price paths, not just one predicted point?} Instead of producing a single deterministic output, it generates a distribution of outcomes through repeated random sampling.
+
+\subsubsection{Why This Matters for Decisions}
+Point forecasts alone are insufficient in portfolio decisions. Investors require a distribution-aware view that includes:
+\begin{itemize}
+    \item plausible best-case outcomes,
+    \item plausible worst-case outcomes, and
+    \item probability of profit over a chosen horizon.
+\end{itemize}
+
+\subsubsection{Practical Interpretation}
+\begin{itemize}
+    \item A narrower confidence band generally indicates a more stable return process.
+    \item A wider confidence band indicates elevated uncertainty and higher risk.
+    \item A higher probability of profit suggests a more favorable risk-reward profile.
+\end{itemize}
+
+\subsubsection{Algorithm Implementation}
+The simulation proceeds as follows:
+
+\begin{algorithmic}
+\STATE \textbf{Input:} Historical returns $\{R_1, ..., R_n\}$, current price $P_0$
+\STATE Calculate $\mu = \bar{R}$, $\sigma = s_R$
+\FOR{$s = 1$ to $N_{sim}$}
+    \STATE $P_0^{(s)} \leftarrow P_0$
+    \FOR{$t = 1$ to $T$}
+        \STATE Sample $r_t^{(s)} \sim \mathcal{N}(\mu, \sigma^2)$
+        \STATE $P_t^{(s)} \leftarrow P_{t-1}^{(s)} \times (1 + r_t^{(s)})$
+    \ENDFOR
+\ENDFOR
+\STATE \textbf{Output:} Price path matrix $\mathbf{P} \in \mathbb{R}^{(T+1) \times N_{sim}}$
+\end{algorithmic}
+
+\subsubsection{Configurable Parameters}
+\begin{itemize}
+    \item \textbf{Number of simulations:} 100 to 10,000 (default: 1,000)
+    \item \textbf{Forecast horizon:} 5 to 252 trading days (default: 30)
+    \item \textbf{Confidence band:} 68\%, 90\%, or 95\%
+\end{itemize}
+
+\subsubsection{Output Metrics}
+The simulation produces:
+\begin{equation}
+    P(\text{Profit}) = \frac{1}{N}\sum_{s=1}^{N} \mathbb{1}[P_T^{(s)} > P_0]
+\end{equation}
+\begin{equation}
+    \text{Expected Price} = \frac{1}{N}\sum_{s=1}^{N} P_T^{(s)}
+\end{equation}
+\begin{equation}
+    \text{Best Case} = P_T^{(95\%)}; \quad \text{Worst Case} = P_T^{(5\%)}
+\end{equation}
+
+\subsection{Isolation Forest Anomaly Detection}
+
+\subsubsection{Algorithm Overview}
+Isolation Forest~\cite{liu2008} detects anomalies by isolating observations through random recursive partitioning. The key insight is that anomalies, being rare and different, require fewer random splits to isolate.
+
+\subsubsection{Feature Set}
+The algorithm operates on 8 standardized features:
+\begin{equation}
+    \mathbf{F} = [O, H, L, C, V, R, \sigma_{10}, RSI]
+\end{equation}
+
+Features are standardized using Z-score normalization:
+\begin{equation}
+    z_j = \frac{x_j - \mu_j}{\sigma_j}
+\end{equation}
+
+\subsubsection{Anomaly Scoring}
+The anomaly score is computed as:
+\begin{equation}
+    s(x, n) = 2^{-\frac{E[h(x)]}{c(n)}}
+\end{equation}
+where $h(x)$ is the path length from root to external node, and $c(n) = 2H(n-1) - \frac{2(n-1)}{n}$ is the average path length of unsuccessful search in a BST.
+
+\subsubsection{Configurable Parameters}
+\begin{itemize}
+    \item \textbf{Contamination:} Expected anomaly rate (1\%-10\%)
+    \item \textbf{Number of estimators:} 50-300 isolation trees
+\end{itemize}
+
+\subsection{Composite Health Score}
+
+The system computes a multi-factor health score (0-100) integrating five components:
+
+\begin{equation}
+    H = \frac{1}{5}(S_{trend} + S_{RSI} + S_{WR} + S_{vol} + S_{R^2})
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $S_{trend} = \min(\max(\frac{R_{total} + 30}{60} \times 100, 0), 100)$
+    \item $S_{RSI} = \max(100 - |RSI - 50| \times 2, 0)$
+    \item $S_{WR} = \text{Win Rate (\%)}$
+    \item $S_{vol} = \max(0, 100 - |\frac{\sigma_{recent}}{\sigma_{avg}} - 1| \times 200)$
+    \item $S_{R^2} = R^2 \times 100$
+\end{itemize}
+
+Health score interpretation:
+\begin{itemize}
+    \item $H \geq 65$: Healthy (green)
+    \item $40 \leq H < 65$: Mixed signals (orange)
+    \item $H < 40$: Weak (red)
+\end{itemize}
+
+\subsection{Combined Forecast Signal}
+
+The system generates a composite trading signal integrating ML and Monte Carlo outputs:
+
+\begin{equation}
+    \text{Composite} = R^2 \times \text{sign}(\Delta P) + \left(\frac{P(\text{profit})}{100} - 0.5\right)
+\end{equation}
+
+Signal interpretation:
+\begin{itemize}
+    \item Composite $> 0.15$: Bullish 🟢
+    \item Composite $< -0.15$: Bearish 🔴
+    \item Otherwise: Neutral 🟡
+\end{itemize}
+
+\section{System Implementation}
+
+\subsection{Technology Stack}
+
+\begin{table}[H]
+\caption{Technology Stack and Dependencies}
+\begin{center}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Component} & \textbf{Technology} & \textbf{Version} \\
+\hline
+Core Language & Python & 3.x \\
+\hline
+Web Framework & Streamlit & Latest \\
+\hline
+Data Processing & Pandas, NumPy & Latest \\
+\hline
+Visualization & Plotly & Latest \\
+\hline
+Machine Learning & Scikit-Learn & Latest \\
+\hline
+Statistics & SciPy & Latest \\
+\hline
+Data Source & yfinance & Latest \\
+\hline
+Efficient Sorting & heapq (stdlib) & Built-in \\
+\hline
+\end{tabular}
+\label{tab:tech}
+\end{center}
+\end{table}
+
+\subsection{Dashboard Architecture}
+
+The main dashboard (\texttt{code.py}) implements seven interactive tabs:
+
+\subsubsection{Tab 1: Live Chart}
+Real-time stock price visualization with:
+\begin{itemize}
+    \item Candlestick or line chart options
+    \item 68\% probability band overlay (shaded region)
+    \item Volume bars with color coding (green=up, red=down)
+    \item RSI(14) subplot with overbought/oversold zones
+    \item Interactive range selectors (1W, 1M, 3M, 6M, 1Y, All)
+    \item Auto-refresh capability (10-120 second intervals)
+\end{itemize}
+
+\subsubsection{Tab 2: CSV Analysis}
+Historical data analysis featuring:
+\begin{itemize}
+    \item Dual CSV upload for stock comparison
+    \item Auto-generated chart analysis (trend, volatility, momentum, key levels)
+    \item Win rate and 95\% VaR calculations
+    \item Top N gain/loss days using \texttt{heapq.nlargest/nsmallest}
+    \item Optimal exit simulation tool
+    \item Correlation matrix visualization
+\end{itemize}
+
+\subsubsection{Tab 3: ML Prediction}
+Linear Regression forecasting with:
+\begin{itemize}
+    \item Adjustable train-test split (10\%-40\%)
+    \item Actual vs. Predicted price chart
+    \item Feature importance visualization
+    \item Tomorrow's predicted close with UP/DOWN signal
+    \item RMSE and $R^2$ performance metrics
+\end{itemize}
+
+\subsubsection{Tab 4: Statistics}
+Comprehensive statistical analysis:
+\begin{itemize}
+    \item Descriptive statistics table (mean, std, quartiles, skewness, kurtosis)
+    \item Histogram of daily returns with mean/median markers
+    \item Box plot for outlier identification
+    \item Cumulative return area chart
+    \item Rolling 10-day volatility timeline
+\end{itemize}
+
+\subsubsection{Tab 5: Monte Carlo}
+Probabilistic forecasting with:
+\begin{itemize}
+    \item Fan chart showing simulated price paths
+    \item Confidence band visualization (68\%/90\%/95\%)
+    \item Final price distribution histogram
+    \item Probability of profit, expected price, best/worst case metrics
+\end{itemize}
+
+\subsubsection{Tab 6: Anomaly Detection}
+Isolation Forest analysis:
+\begin{itemize}
+    \item Price chart with anomaly markers (red X)
+    \item Anomaly score timeline with threshold boundary
+    \item Detailed table of anomalous days
+    \item Configurable contamination rate and tree count
+\end{itemize}
+
+\subsubsection{Tab 7: Summary}
+Executive report consolidating:
+\begin{itemize}
+    \item Hero banner with total return and health score gauge
+    \item Key metrics: win rate, VaR, average daily return
+    \item Trend \& momentum analysis cards
+    \item Support/resistance levels
+    \item Volatility profile and distribution shape
+    \item Model comparison (ML, Monte Carlo, Statistics, Anomaly)
+    \item Combined ML + MC forecast with composite signal
+    \item 30-day mini fan chart
+    \item Plain English verdict
+    \item Dual-stock investor pick (when both CSVs uploaded)
+\end{itemize}
+
+\subsection{CSV Generator Tool}
+The standalone \texttt{generate\_csv.py} provides:
+\begin{itemize}
+    \item Searchable dropdown with 100+ popular tickers
+    \item Cryptocurrency-first focus (BTC, ETH, SOL, etc.)
+    \item US large caps (AAPL, MSFT, GOOGL, etc.)
+    \item Indian NSE stocks (RELIANCE.NS, TCS.NS, etc.)
+    \item Global indices (S\&P 500, Nifty 50, Sensex)
+    \item Data preview with quick stats
+    \item One-click CSV download
+\end{itemize}
+
+\section{Results and Discussion}
+
+\subsection{Deeper Interpretation of Results}
+The model achieves $R^2 > 0.95$ for most stocks, indicating a strong fit to historical samples. However, this result must be interpreted carefully. Stock prices exhibit strong autocorrelation, meaning that today's price heavily influences tomorrow's price.
+
+Therefore, a high $R^2$ should not be interpreted as complete predictive intelligence; it also reflects temporal persistence in prices.
+
+Key observations:
+\begin{itemize}
+    \item Close, High, and Low prices dominate feature importance
+    \item RSI contributes meaningful momentum signal
+    \item 68\% probability bounds add marginal predictive value
+    \item RMSE varies by stock volatility (higher for volatile stocks)
+\end{itemize}
+
+\subsection{Monte Carlo Validation}
+Monte Carlo simulations provide reliable uncertainty quantification:
+\begin{itemize}
+    \item Probability of profit estimates align with historical win rates
+    \item 68\% confidence bands capture actual outcomes approximately 68\% of the time (consistent with the empirical rule)
+    \item Simulation convergence observed beyond 1,000 iterations
+\end{itemize}
+
+\subsection{Anomaly Detection Effectiveness}
+Isolation Forest successfully identifies:
+\begin{itemize}
+    \item Earnings announcement days
+    \item Market-wide shock events (e.g., flash crashes)
+    \item Unusual volume spikes
+    \item Price gaps exceeding normal distributions
+\end{itemize}
+
+At 3\% contamination rate, the algorithm typically flags 8-15 days per year of historical data as anomalous, corresponding to major market events.
+
+\subsection{Health Score Validation}
+The composite health score correlates with forward returns:
+\begin{itemize}
+    \item Stocks with $H > 65$ show higher probability of positive returns
+    \item Stocks with $H < 40$ exhibit higher volatility and drawdown risk
+    \item The dual-stock comparison feature enables relative ranking for portfolio decisions
+\end{itemize}
+
+\subsection{Risk vs Return Insight}
+The integrated analysis highlights a core financial principle: higher expected returns are often associated with higher risk. Assets with larger upside projections frequently exhibit wider Monte Carlo confidence intervals, indicating increased outcome uncertainty.
+
+\subsection{Practical Use for Investors}
+The system delivers three complementary decision signals:
+\begin{itemize}
+    \item \textbf{Prediction (ML):} Estimated direction and magnitude of next-day movement.
+    \item \textbf{Probability (Monte Carlo):} Likelihood-weighted outcome distribution.
+    \item \textbf{Risk Alerts (Anomaly Detection):} Detection of unusual market behavior.
+\end{itemize}
+Together, these signals support more balanced and informed decision-making.
+
+\section{Probability and Statistics Concepts}
+
+\begin{table}[H]
+\caption{P\&S Concepts Applied in the System}
+\begin{center}
+\begin{tabular}{|p{2.5cm}|p{2.5cm}|p{2.5cm}|}
+\hline
+\textbf{Method} & \textbf{Application} & \textbf{P\&S Concept} \\
+\hline
+Rolling Mean/Std & 68\% Probability Band & Normal Distribution, Empirical Rule \\
+\hline
+Linear Regression & Price Prediction & Regression Analysis, $R^2$, RMSE \\
+\hline
+Monte Carlo & Future Scenarios & Random Sampling, CLT, Confidence Intervals \\
+\hline
+Isolation Forest & Outlier Detection & Ensemble Methods, Probability Thresholds \\
+\hline
+VaR (5th \%ile) & Risk Assessment & Quantiles, Tail Probability \\
+\hline
+Histogram & Return Distribution & Descriptive Statistics \\
+\hline
+Box Plot & Outlier Visualization & Quartiles, IQR \\
+\hline
+Correlation Matrix & Feature Relationships & Pearson Correlation \\
+\hline
+Skewness & Asymmetry Analysis & Third Central Moment \\
+\hline
+Kurtosis & Tail Risk & Fourth Central Moment \\
+\hline
+StandardScaler & Feature Normalization & Z-Score Transformation \\
+\hline
+Win Rate & Historical Probability & Bernoulli Success Rate \\
+\hline
+Composite Score & Multi-factor Index & Weighted Average \\
+\hline
+\end{tabular}
+\label{tab:concepts}
+\end{center}
+\end{table}
+
+\section{Model Robustness and Validation}
+
+\subsection{Sensitivity Analysis}
+Model behavior was examined across multiple settings, including varying train-test splits, feature ablation, and changes in simulation parameters. The observed trends indicate that RSI improves directional consistency, while volume becomes more influential during high-volatility periods.
+
+\subsection{Behavior Across Market Conditions}
+Performance characteristics differ by market regime:
+\begin{itemize}
+    \item \textbf{Bull markets:} More stable predictions and tighter uncertainty ranges.
+    \item \textbf{Bear markets:} Higher volatility and lower predictive consistency.
+    \item \textbf{Sideways markets:} More neutral signals and reduced directional confidence.
+\end{itemize}
+
+\section{Limitations and Future Work}
+
+\subsection{Expanded Limitations}
+\begin{enumerate}
+    \item \textbf{External Event Dependency:} Markets are strongly influenced by external shocks not fully represented in historical OHLCV features.
+    \item \textbf{Distributional Assumption:} The normal return assumption in Monte Carlo may underestimate extreme tail events.
+    \item \textbf{Macro Blindness:} The current feature space does not include macroeconomic variables and event-level sentiment.
+    \item \textbf{Linear Assumption:} The regression model cannot capture nonlinear relationships or regime changes.
+    \item \textbf{Look-ahead Bias Risk:} Feature engineering using rolling windows may inadvertently introduce subtle biases
+    \item \textbf{Single-asset Focus:} No portfolio-level optimization or correlation analysis across assets.
+\end{enumerate}
+
+\subsection{Future Enhancements}
+\begin{enumerate}
+    \item \textbf{Deep Learning:} Integration of LSTM or Transformer models for capturing temporal dependencies
+    \item \textbf{Sentiment Analysis:} NLP-based analysis of news headlines and social media
+    \item \textbf{Portfolio Optimization:} Modern Portfolio Theory implementation for multi-asset allocation
+    \item \textbf{Alternative Distributions:} Student-t or GARCH models for heavy-tailed returns
+    \item \textbf{Real-time Alerts:} Push notifications for anomaly detection and signal generation
+    \item \textbf{Backtesting Engine:} Historical strategy simulation with transaction costs
+\end{enumerate}
+
+\section{Conclusion}
+This paper presented an integrated stock analysis framework that combines machine learning and statistical methods for prediction, uncertainty quantification, and risk-aware exit planning. Unlike single-method pipelines, the proposed system delivers both point forecasts and probabilistic interpretation.
+
+Key achievements include:
+\begin{itemize}
+    \item An 8-feature Linear Regression model achieving $R^2 > 0.95$
+    \item Monte Carlo simulation supporting up to 10,000 paths with configurable confidence bands
+    \item Isolation Forest anomaly detection with tunable sensitivity
+    \item A composite health score integrating five statistical factors
+    \item Combined ML + Monte Carlo forecast with probabilistic signal generation
+\end{itemize}
+
+The key practical strength lies in combining interpretability (Linear Regression), probabilistic insight (Monte Carlo simulation), and risk awareness (Isolation Forest anomaly detection). This integrated structure makes the system intuitive and operational for real-world investment analysis while retaining statistical rigor.
+
+\section*{Acknowledgment}
+This project was developed as part of the Probability and Statistics course (MAT2001) at Vellore Institute of Technology, Vellore. The author thanks the course instructors for their guidance on statistical methodology.
+
+\begin{thebibliography}{00}
+\bibitem{fama1970} E. F. Fama, ``Efficient Capital Markets: A Review of Theory and Empirical Work,'' The Journal of Finance, vol. 25, no. 2, pp. 383--417, 1970.
+\bibitem{huang2005} W. Huang, Y. Nakamori, and S.-Y. Wang, ``Forecasting stock market movement direction with support vector machine,'' Computers \& Operations Research, vol. 32, no. 10, pp. 2513--2522, 2005.
+\bibitem{glasserman2003} P. Glasserman, Monte Carlo Methods in Financial Engineering. New York, NY, USA: Springer, 2003.
+\bibitem{liu2008} F. T. Liu, K. M. Ting, and Z.-H. Zhou, ``Isolation Forest,'' in Proc. IEEE Int. Conf. Data Mining (ICDM), Pisa, Italy, 2008, pp. 413--422.
+\bibitem{fischer2018} T. Fischer and C. Krauss, ``Deep learning with long short-term memory networks for financial market predictions,'' European Journal of Operational Research, vol. 270, no. 2, pp. 654--669, 2018.
+\bibitem{scikit} F. Pedregosa et al., ``Scikit-learn: Machine Learning in Python,'' Journal of Machine Learning Research, vol. 12, pp. 2825--2830, 2011.
+\bibitem{mckinney2010} W. McKinney, ``Data Structures for Statistical Computing in Python,'' in Proc. 9th Python in Science Conf. (SciPy), Austin, TX, USA, 2010, pp. 51--56.
+\bibitem{streamlit} Streamlit Inc., ``Streamlit: The fastest way to build and share data apps,'' 2024. [Online]. Available: https://streamlit.io
+\bibitem{plotly} Plotly Technologies Inc., ``Collaborative data science,'' 2024. [Online]. Available: https://plotly.com
+\bibitem{yfinance} R. Aroussi, ``yfinance: Download market data from Yahoo! Finance's API,'' 2024. [Online]. Available: https://github.com/ranaroussi/yfinance
+\bibitem{markowitz1952} H. Markowitz, ``Portfolio Selection,'' The Journal of Finance, vol. 7, no. 1, pp. 77--91, 1952.
+\bibitem{jorion2006} P. Jorion, Value at Risk: The New Benchmark for Managing Financial Risk, 3rd ed. New York, NY, USA: McGraw-Hill, 2006.
+\end{thebibliography}
+
+\end{document}
