@@ -721,6 +721,15 @@ We evaluated the Linear Regression model with varying train-test split ratios to
 
 The consistently high $R^2$ values (>0.96) across all test splits demonstrate model stability. The RMSE of approximately \$4.5 represents a prediction error of less than 3\% relative to the mean price of \$155.72.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{ml_regression_dashboard.png}
+\caption{GOOGL Linear Regression: Actual vs Predicted prices from the dashboard. The blue solid line shows actual closing prices while the orange dashed line shows model predictions. The close overlap demonstrates the model's high accuracy ($R^2 = 0.995$) in capturing price movements from March 2025 to March 2026.}
+\label{fig:ml_regression}
+\end{figure}
+
+Figure~\ref{fig:ml_regression} visualizes the model's predictive performance on the test set. The close tracking between actual and predicted values confirms the high $R^2$ scores, with the model successfully capturing both upward trends (mid-2025 rally to \$340+) and subsequent corrections (Q1 2026 pullback).
+
 \subsection{Feature Coefficient Analysis}
 
 \begin{table}[H]
