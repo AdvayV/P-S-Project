@@ -6,7 +6,6 @@
 
 A **Streamlit-based stock analysis dashboard** combining probability & statistics with machine learning to analyze stock market data. Features interactive visualizations, ML predictions, Monte Carlo simulations, and anomaly detection.
 
-> 📚 **Academic Project** for Probability & Statistics (MAT2001) at VIT, Vellore
 
 ![Dashboard Preview](figures/monte_carlo_dashboard.png)
 
