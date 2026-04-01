@@ -1262,15 +1262,45 @@ with tab_mc:
             worst5      = np.percentile(final_prices, 5)
             best5       = np.percentile(final_prices, 95)
 
-            # Store Monte Carlo results for Summary tab
+            # Calculate additional statistics for detailed display
+            median_final = np.median(final_prices)
+            std_final = np.std(final_prices)
+            min_final = np.min(final_prices)
+            max_final = np.max(final_prices)
+            p10 = np.percentile(final_prices, 10)
+            p25 = np.percentile(final_prices, 25)
+            p75 = np.percentile(final_prices, 75)
+            p90 = np.percentile(final_prices, 90)
+            expected_return = ((expected - last_close) / last_close) * 100
+            median_return = ((median_final - last_close) / last_close) * 100
+            conf_low_final = lo_band[-1]
+            conf_high_final = hi_band[-1]
+
+            # Store Monte Carlo results for Summary tab (expanded)
             st.session_state[f"mc_results_{active_stock}"] = {
                 "prob_profit": prob_profit,
+                "prob_loss": prob_loss,
                 "expected": expected,
+                "expected_return": expected_return,
+                "median": median_final,
+                "median_return": median_return,
                 "worst5": worst5,
                 "best5": best5,
+                "p10": p10,
+                "p25": p25,
+                "p75": p75,
+                "p90": p90,
+                "min": min_final,
+                "max": max_final,
+                "std": std_final,
+                "conf_low": conf_low_final,
+                "conf_high": conf_high_final,
+                "confidence": confidence,
                 "last_close": last_close,
                 "mu": mu,
                 "sigma": sigma,
+                "n_simulations": n_simulations,
+                "n_days": n_days,
             }
 
             k1, k2, k3, k4 = st.columns(4)
@@ -1290,9 +1320,130 @@ with tab_mc:
             st.markdown(
                 f"**In plain English:** Based on {n_simulations:,} simulated scenarios over {n_days} trading days, "
                 f"there is a **{prob_profit:.0f}% chance** the stock goes up and a **{prob_loss:.0f}% chance** it goes down. "
-                f"The most likely outcome (median) is a price of **{np.median(final_prices):.2f}**. "
+                f"The most likely outcome (median) is a price of **{median_final:.2f}**. "
                 f"With {confidence} confidence, the price should land between "
-                f"**{lo_band[-1]:.2f}** and **{hi_band[-1]:.2f}**.")
+                f"**{conf_low_final:.2f}** and **{conf_high_final:.2f}**.")
+
+            # ── Detailed Monte Carlo Values Table ──
+            st.markdown("---")
+            st.markdown('<div class="section-header">📊 Detailed Simulation Results</div>', unsafe_allow_html=True)
+
+            st.markdown(
+                '<div class="explain-box">'
+                '<b>🔰 Understanding these values:</b> The table below shows the complete distribution of '
+                f'simulated final prices after {n_days} trading days. Percentiles tell you what percentage of '
+                'simulations ended below that price. For example, the 25th percentile means 25% of simulations '
+                'ended below that price.'
+                '</div>', unsafe_allow_html=True)
+
+            # Create two columns for the detailed values
+            det_col1, det_col2 = st.columns(2)
+
+            with det_col1:
+                st.markdown("**📈 Price Distribution Statistics**")
+                price_stats_data = {
+                    "Metric": [
+                        "Starting Price",
+                        "Expected (Mean) Price",
+                        "Median Price",
+                        "Standard Deviation",
+                        "Minimum Simulated",
+                        "Maximum Simulated",
+                        "Price Range (Max - Min)",
+                    ],
+                    "Value": [
+                        fmt_price(last_close, currency_symbol),
+                        fmt_price(expected, currency_symbol),
+                        fmt_price(median_final, currency_symbol),
+                        fmt_price(std_final, currency_symbol),
+                        fmt_price(min_final, currency_symbol),
+                        fmt_price(max_final, currency_symbol),
+                        fmt_price(max_final - min_final, currency_symbol),
+                    ],
+                    "Change %": [
+                        "—",
+                        f"{expected_return:+.2f}%",
+                        f"{median_return:+.2f}%",
+                        "—",
+                        f"{((min_final - last_close)/last_close)*100:+.2f}%",
+                        f"{((max_final - last_close)/last_close)*100:+.2f}%",
+                        "—",
+                    ]
+                }
+                st.dataframe(pd.DataFrame(price_stats_data), use_container_width=True, hide_index=True)
+
+            with det_col2:
+                st.markdown("**📊 Percentile Breakdown**")
+                percentile_data = {
+                    "Percentile": [
+                        "5th (Worst Case)",
+                        "10th",
+                        "25th (Q1)",
+                        "50th (Median)",
+                        "75th (Q3)",
+                        "90th",
+                        "95th (Best Case)",
+                    ],
+                    "Price": [
+                        fmt_price(worst5, currency_symbol),
+                        fmt_price(p10, currency_symbol),
+                        fmt_price(p25, currency_symbol),
+                        fmt_price(median_final, currency_symbol),
+                        fmt_price(p75, currency_symbol),
+                        fmt_price(p90, currency_symbol),
+                        fmt_price(best5, currency_symbol),
+                    ],
+                    "Return %": [
+                        f"{((worst5 - last_close)/last_close)*100:+.2f}%",
+                        f"{((p10 - last_close)/last_close)*100:+.2f}%",
+                        f"{((p25 - last_close)/last_close)*100:+.2f}%",
+                        f"{median_return:+.2f}%",
+                        f"{((p75 - last_close)/last_close)*100:+.2f}%",
+                        f"{((p90 - last_close)/last_close)*100:+.2f}%",
+                        f"{((best5 - last_close)/last_close)*100:+.2f}%",
+                    ]
+                }
+                st.dataframe(pd.DataFrame(percentile_data), use_container_width=True, hide_index=True)
+
+            # Probability Analysis
+            st.markdown("**🎯 Probability Analysis**")
+            prob_col1, prob_col2, prob_col3 = st.columns(3)
+
+            with prob_col1:
+                st.markdown(
+                    f'<div style="background:#e8f5e9; border-radius:12px; padding:16px; text-align:center;">'
+                    f'<div style="font-size:0.85rem; color:#2e7d32; font-weight:600;">CHANCE OF PROFIT</div>'
+                    f'<div style="font-size:2rem; font-weight:800; color:#1b5e20;">{prob_profit:.1f}%</div>'
+                    f'<div style="font-size:0.8rem; color:#388e3c;">{int(prob_profit/100 * n_simulations):,} of {n_simulations:,} sims</div>'
+                    f'</div>', unsafe_allow_html=True)
+
+            with prob_col2:
+                st.markdown(
+                    f'<div style="background:#ffebee; border-radius:12px; padding:16px; text-align:center;">'
+                    f'<div style="font-size:0.85rem; color:#c62828; font-weight:600;">CHANCE OF LOSS</div>'
+                    f'<div style="font-size:2rem; font-weight:800; color:#b71c1c;">{prob_loss:.1f}%</div>'
+                    f'<div style="font-size:0.8rem; color:#d32f2f;">{int(prob_loss/100 * n_simulations):,} of {n_simulations:,} sims</div>'
+                    f'</div>', unsafe_allow_html=True)
+
+            with prob_col3:
+                # Calculate probability of >10% gain and >10% loss
+                prob_10_gain = (final_prices > last_close * 1.10).mean() * 100
+                prob_10_loss = (final_prices < last_close * 0.90).mean() * 100
+                st.markdown(
+                    f'<div style="background:#fff3e0; border-radius:12px; padding:16px; text-align:center;">'
+                    f'<div style="font-size:0.85rem; color:#e65100; font-weight:600;">EXTREME MOVES</div>'
+                    f'<div style="font-size:1rem; font-weight:700; color:#ef6c00;">📈 >10% gain: {prob_10_gain:.1f}%</div>'
+                    f'<div style="font-size:1rem; font-weight:700; color:#ef6c00;">📉 >10% loss: {prob_10_loss:.1f}%</div>'
+                    f'</div>', unsafe_allow_html=True)
+
+            # Simulation Parameters Used
+            st.markdown("---")
+            st.markdown("**⚙️ Simulation Parameters**")
+            param_col1, param_col2, param_col3, param_col4 = st.columns(4)
+            param_col1.metric("Simulations Run", f"{n_simulations:,}")
+            param_col2.metric("Forecast Horizon", f"{n_days} days")
+            param_col3.metric("Mean Daily Return (μ)", f"{mu*100:.4f}%")
+            param_col4.metric("Daily Volatility (σ)", f"{sigma*100:.4f}%")
 
     else:
         st.info("Upload a CSV in the CSV Analysis tab first.")
@@ -1804,24 +1955,77 @@ with tab_summary:
             # Monte Carlo Card
             if _mc:
                 mc_signal = "📈 Bullish" if _mc["prob_profit"] > 55 else "📉 Bearish" if _mc["prob_profit"] < 45 else "➡️ Neutral"
+                n_sims_display = _mc.get("n_simulations", "N/A")
+                n_days_display = _mc.get("n_days", "N/A")
+                conf_display = _mc.get("confidence", "68%")
+                median_display = _mc.get("median", _mc["expected"])
+                expected_ret = _mc.get("expected_return", (((_mc["expected"] - _mc["last_close"]) / _mc["last_close"]) * 100))
+
                 st.markdown(
                     '<div class="model-compare-card">'
                     '<div class="mc-title">🎲 Monte Carlo Simulation</div>'
-                    '<div class="mc-subtitle">Runs thousands of random "what-if" futures based on past behavior</div>'
+                    f'<div class="mc-subtitle">Ran {n_sims_display:,} simulations over {n_days_display} trading days</div>'
                     f'<div class="mc-row"><span class="mc-icon">💰</span><div><div class="mc-label">Probability of Profit</div>'
                     f'<div class="mc-desc">% of simulations ending above current price</div></div>'
                     f'<span class="mc-value">{_mc["prob_profit"]:.1f}%</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">🎯</span><div><div class="mc-label">Expected Price</div>'
-                    f'<div class="mc-desc">Average across all simulated outcomes</div></div>'
+                    f'<div class="mc-desc">Mean outcome ({expected_ret:+.2f}% return)</div></div>'
                     f'<span class="mc-value">{fmt_price(_mc["expected"], currency_symbol)}</span></div>'
+                    f'<div class="mc-row"><span class="mc-icon">📊</span><div><div class="mc-label">Median Price</div>'
+                    f'<div class="mc-desc">50th percentile (most likely outcome)</div></div>'
+                    f'<span class="mc-value">{fmt_price(median_display, currency_symbol)}</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">🚀</span><div><div class="mc-label">Best Case (95th)</div>'
                     f'<div class="mc-desc">Only 5% of simulations beat this</div></div>'
                     f'<span class="mc-value">{fmt_price(_mc["best5"], currency_symbol)}</span></div>'
                     f'<div class="mc-row"><span class="mc-icon">⚠️</span><div><div class="mc-label">Worst Case (5th)</div>'
                     f'<div class="mc-desc">Only 5% of simulations were worse</div></div>'
                     f'<span class="mc-value">{fmt_price(_mc["worst5"], currency_symbol)}</span></div>'
+                    f'<div class="mc-row"><span class="mc-icon">📈</span><div><div class="mc-label">Signal</div>'
+                    f'<div class="mc-desc">Based on probability of profit</div></div>'
+                    f'<span class="mc-value">{mc_signal}</span></div>'
                     '</div>',
                     unsafe_allow_html=True)
+
+                # Additional MC details in expandable section
+                with st.expander("📊 Full Monte Carlo Distribution Details"):
+                    mc_det1, mc_det2 = st.columns(2)
+                    with mc_det1:
+                        st.markdown("**Percentile Breakdown**")
+                        mc_percentile_data = {
+                            "Percentile": ["5th (Worst)", "10th", "25th (Q1)", "50th (Median)", "75th (Q3)", "90th", "95th (Best)"],
+                            "Price": [
+                                fmt_price(_mc.get("worst5", 0), currency_symbol),
+                                fmt_price(_mc.get("p10", _mc.get("worst5", 0)), currency_symbol),
+                                fmt_price(_mc.get("p25", _mc.get("worst5", 0)), currency_symbol),
+                                fmt_price(_mc.get("median", _mc["expected"]), currency_symbol),
+                                fmt_price(_mc.get("p75", _mc.get("best5", 0)), currency_symbol),
+                                fmt_price(_mc.get("p90", _mc.get("best5", 0)), currency_symbol),
+                                fmt_price(_mc.get("best5", 0), currency_symbol),
+                            ]
+                        }
+                        st.dataframe(pd.DataFrame(mc_percentile_data), use_container_width=True, hide_index=True)
+
+                    with mc_det2:
+                        st.markdown("**Simulation Parameters**")
+                        mc_params_data = {
+                            "Parameter": ["Simulations", "Forecast Days", "Confidence Band", "Mean Return (μ)", "Volatility (σ)"],
+                            "Value": [
+                                f"{_mc.get('n_simulations', 'N/A'):,}" if isinstance(_mc.get('n_simulations'), int) else str(_mc.get('n_simulations', 'N/A')),
+                                str(_mc.get("n_days", "N/A")),
+                                str(_mc.get("confidence", "68%")),
+                                f"{_mc.get('mu', 0)*100:.4f}%",
+                                f"{_mc.get('sigma', 0)*100:.4f}%",
+                            ]
+                        }
+                        st.dataframe(pd.DataFrame(mc_params_data), use_container_width=True, hide_index=True)
+
+                    # Probability metrics
+                    st.markdown("**Probability Metrics**")
+                    prob_col1, prob_col2, prob_col3, prob_col4 = st.columns(4)
+                    prob_col1.metric("Prob. of Profit", f"{_mc['prob_profit']:.1f}%")
+                    prob_col2.metric("Prob. of Loss", f"{_mc.get('prob_loss', 100-_mc['prob_profit']):.1f}%")
+                    prob_col3.metric("Start Price", fmt_price(_mc["last_close"], currency_symbol))
+                    prob_col4.metric("Price Spread (Std)", fmt_price(_mc.get("std", 0), currency_symbol))
             else:
                 st.markdown(
                     '<div class="model-compare-card">'
