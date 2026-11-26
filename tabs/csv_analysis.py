@@ -28,7 +28,7 @@ currency_symbol = detect_currency_symbol_from_file(uploaded_file)
 if uploaded_file:
     df, numeric_cols = load_and_clean_csv(uploaded_file)
     df = add_features(df)
-    df_ml = df.dropna().reset_index(drop=True)
+    known_price_changes = df.dropna(subset=["Price_Change"]).reset_index(drop=True)
 
     with st.sidebar:
         st.header("CSV Controls")
@@ -61,10 +61,10 @@ if uploaded_file:
     st.subheader("Top Price Change Days")
     col_g, col_l = st.columns(2)
     if direction in ("Max Gains", "Both"):
-        gains = heapq.nlargest(N, enumerate(df_ml["Price_Change"]), key=lambda x: x[1])
-        gain_data = [[df_ml.iloc[i]["Date"].strftime("%Y-%m-%d"),
-                      fmt_price(df_ml.iloc[i]["Close"], currency_symbol),
-                      fmt_price(df_ml.iloc[i]["Close_next"], currency_symbol),
+        gains = heapq.nlargest(N, enumerate(known_price_changes["Price_Change"]), key=lambda x: x[1])
+        gain_data = [[known_price_changes.iloc[i]["Date"].strftime("%Y-%m-%d"),
+                      fmt_price(known_price_changes.iloc[i]["Close"], currency_symbol),
+                      fmt_price(known_price_changes.iloc[i]["Close_next"], currency_symbol),
                       f"+{c:.2f}"] for i, c in gains]
         with col_g:
             st.markdown("**Biggest Gains**")
@@ -72,10 +72,10 @@ if uploaded_file:
                          use_container_width=True, hide_index=True)
 
     if direction in ("Max Losses", "Both"):
-        losses = heapq.nsmallest(N, enumerate(df_ml["Price_Change"]), key=lambda x: x[1])
-        loss_data = [[df_ml.iloc[i]["Date"].strftime("%Y-%m-%d"),
-                      fmt_price(df_ml.iloc[i]["Close"], currency_symbol),
-                      fmt_price(df_ml.iloc[i]["Close_next"], currency_symbol),
+        losses = heapq.nsmallest(N, enumerate(known_price_changes["Price_Change"]), key=lambda x: x[1])
+        loss_data = [[known_price_changes.iloc[i]["Date"].strftime("%Y-%m-%d"),
+                      fmt_price(known_price_changes.iloc[i]["Close"], currency_symbol),
+                      fmt_price(known_price_changes.iloc[i]["Close_next"], currency_symbol),
                       f"{c:.2f}"] for i, c in losses]
         with col_l:
             st.markdown("**Biggest Losses**")

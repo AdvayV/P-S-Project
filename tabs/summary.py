@@ -21,28 +21,32 @@ if stock1_df is not None and stock2_df is not None:
     better_color = s1["health_color"] if better == "Stock 1" else s2["health_color"]
     st.markdown(
         f'<div class="analysis-card">'
-        f'<div class="ac-header">⚖️ Stock Comparison (Investor Pick)</div>'
+        f'<div class="ac-header">⚖️ Historical Stock Comparison</div>'
         f'<div class="ac-row"><span>Stock 1 Health Score</span><span class="ac-val" style="color:{s1["health_color"]};">{s1["health_score"]:.0f}/100 · {s1["health_word"]}</span></div>'
         f'<div class="ac-row"><span>Stock 2 Health Score</span><span class="ac-val" style="color:{s2["health_color"]};">{s2["health_score"]:.0f}/100 · {s2["health_word"]}</span></div>'
         f'<div class="ac-row"><span>Stock 1 Total Return</span><span class="ac-val">{s1["total_return"]:+.2f}%</span></div>'
         f'<div class="ac-row"><span>Stock 2 Total Return</span><span class="ac-val">{s2["total_return"]:+.2f}%</span></div>'
         f'<div class="ac-row"><span>Stock 1 Win Rate</span><span class="ac-val">{s1["win_rate"]:.1f}%</span></div>'
         f'<div class="ac-row"><span>Stock 2 Win Rate</span><span class="ac-val">{s2["win_rate"]:.1f}%</span></div>'
-        f'<div class="ac-row"><span>Better Pick (by Health Score)</span><span class="ac-val" style="color:{better_color};">{better}</span></div>'
+        f'<div class="ac-row"><span>Higher historical score</span><span class="ac-val" style="color:{better_color};">{better}</span></div>'
         f'</div>',
         unsafe_allow_html=True
     )
     st.markdown(
         '<div class="explain-box">'
-        '<b>🔰 How to use this:</b> The better pick is chosen by the higher Health Score '
+        '<b>🔰 How to use this:</b> The historical score summarizes past trade data '
         '(trend, momentum, win rate, volatility stability, and trend fit). '
-        'If scores are close, compare risk (volatility and VaR) before deciding.'
+        'Volatility and VaR describe different aspects of the same historical sample.'
         '</div>',
         unsafe_allow_html=True
     )
     st.markdown("---")
 
-if uploaded_file:
+summary_file = uploaded_file_1 if active_stock == "Stock 1" else uploaded_file_2
+df = stock1_df if active_stock == "Stock 1" else stock2_df
+currency_symbol = detect_currency_symbol_from_file(summary_file)
+
+if df is not None and not df.empty:
     # ── Compute all summary data up front ─────────────────────────────
     returns_s = df["Daily_Return"].dropna()
     start_price = df["Close"].iloc[0]
@@ -266,56 +270,33 @@ if uploaded_file:
     st.markdown(
         '<div class="explain-box">'
         '<b>🔰 Why multiple models?</b> No single model is perfect. '
-        '<b>Linear Regression</b> looks at patterns in past data to guess tomorrow\'s price. '
+        '<b>Linear Regression</b> looks at patterns in past data to estimate the next session\'s close. '
         '<b>Monte Carlo</b> runs thousands of random "what-if" scenarios to show a range of possibilities. '
         '<b>Statistical Analysis</b> measures the stock\'s personality — how it tends to behave. '
         '<b>Anomaly Detection</b> flags the unusual days that don\'t fit normal patterns. '
         'By comparing all four, you get a fuller picture.</div>',
         unsafe_allow_html=True)
 
-    # ML Prediction results (compute fresh for summary)
-    ml_available = len(df_ml) > 20
-    if ml_available:
-        features_sum = ["Open", "High", "Low", "Close", "Volume",
-                        "Expected_High_68", "Expected_Low_68", "RSI_14"]
-        features_sum = [f for f in features_sum if f in df_ml.columns]
-        X_s = df_ml[features_sum]; y_s = df_ml["Close_next"]
-        X_tr, X_te, y_tr, y_te = train_test_split(X_s, y_s, shuffle=False, test_size=0.2)
-        m_s = LinearRegression().fit(X_tr, y_tr)
-        rmse_s = np.sqrt(mean_squared_error(y_te, m_s.predict(X_te)))
-        r2_ml = r2_score(y_te, m_s.predict(X_te))
-        next_p = m_s.predict(X_s.iloc[[-1]])[0]
-        diff_p = next_p - df_ml["Close"].iloc[-1]
-        ml_signal = "📈 Likely UP" if diff_p > 0 else "📉 Likely DOWN"
-        ml_confidence = "High" if r2_ml > 0.9 else "Medium" if r2_ml > 0.7 else "Low"
-    else:
-        next_p = end_price; diff_p = 0; rmse_s = 0; r2_ml = 0
-        ml_signal = "⚠️ Not enough data"; ml_confidence = "N/A"
+    try:
+        summary_ml = evaluate_next_session(df, st.session_state.get("ml_holdout_pct", 20) / 100)
+    except (KeyError, ValueError):
+        summary_ml = None
 
     _mc = st.session_state.get(f"mc_results_{active_stock}")
 
     comp1, comp2 = st.columns(2)
 
     with comp1:
-        # Linear Regression Card
-        st.markdown(
-            '<div class="model-compare-card">'
-            '<div class="mc-title">🤖 Linear Regression (ML)</div>'
-            '<div class="mc-subtitle">Learns patterns from historical features to predict tomorrow</div>'
-            f'<div class="mc-row"><span class="mc-icon">🎯</span><div><div class="mc-label">Predicted Next Close</div>'
-            f'<div class="mc-desc">Based on 8 features (price, volume, RSI, bands)</div></div>'
-            f'<span class="mc-value">{fmt_price(next_p, currency_symbol)}</span></div>'
-            f'<div class="mc-row"><span class="mc-icon">📊</span><div><div class="mc-label">Accuracy (R²)</div>'
-            f'<div class="mc-desc">How well the model fits test data (1.0 = perfect)</div></div>'
-            f'<span class="mc-value">{r2_ml:.4f}</span></div>'
-            f'<div class="mc-row"><span class="mc-icon">📏</span><div><div class="mc-label">Error Margin (RMSE)</div>'
-            f'<div class="mc-desc">Average error in price units</div></div>'
-            f'<span class="mc-value">{fmt_price(rmse_s, currency_symbol)}</span></div>'
-            f'<div class="mc-row"><span class="mc-icon">🚦</span><div><div class="mc-label">Signal</div>'
-            f'<div class="mc-desc">Confidence: {ml_confidence}</div></div>'
-            f'<span class="mc-value">{ml_signal}</span></div>'
-            '</div>',
-            unsafe_allow_html=True)
+        st.subheader("Linear Regression")
+        if summary_ml:
+            st.caption(f'Next-session forecast as of {summary_ml["as_of"]:%Y-%m-%d}.')
+            st.metric("Estimated next close", fmt_price(summary_ml["prediction"], currency_symbol))
+            rm1, rm2 = st.columns(2)
+            rm1.metric("Regression RMSE", fmt_price(summary_ml["rmse"], currency_symbol))
+            rm2.metric("Persistence RMSE", fmt_price(summary_ml["persistence_rmse"], currency_symbol))
+            st.caption(f'Holdout R² {summary_ml["r2"]:.4f}. Persistence uses the prior close.')
+        else:
+            st.info("A forecast requires enough complete daily rows for training and a chronological holdout.")
 
         # Statistical Analysis Card
         st.markdown(
@@ -442,112 +423,6 @@ if uploaded_file:
 
     st.markdown("---")
 
-    # ── 6. COMBINED ML + MC FORECAST (preserved) ─────────────────────
-    _ml_r = st.session_state.get(f"ml_results_{active_stock}")
-
-    if _ml_r and _mc:
-        st.markdown('<div class="section-header">🔮 Combined Forecast (ML + Monte Carlo)</div>',
-                    unsafe_allow_html=True)
-
-        consensus = (_ml_r["last_pred"] + _mc["expected"]) / 2
-        fc1, fc2, fc3 = st.columns(3)
-        fc1.metric("ML Predicted Next Close",
-                   fmt_price(_ml_r['last_pred'], currency_symbol), f"{_ml_r['diff']:+.2f} from current")
-        fc2.metric("MC Expected Price",
-                   fmt_price(_mc['expected'], currency_symbol),
-                   f"{((_mc['expected'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
-        fc3.metric("Consensus Forecast",
-                   fmt_price(consensus, currency_symbol),
-                   f"{((consensus - _ml_r['last_close']) / _ml_r['last_close'] * 100):+.2f}%",
-                   help="Average of ML prediction and MC expected price.")
-
-        st.markdown("")
-
-        # Composite Signal
-        predicted_dir = 1 if _ml_r["diff"] > 0 else -1
-        composite = (_ml_r["r2"] * predicted_dir) + (_mc["prob_profit"] / 100 - 0.5)
-
-        if composite > 0.15:
-            signal_label = "Bullish"; signal_color = "#00a86b"; signal_emoji = "🟢"
-        elif composite < -0.15:
-            signal_label = "Bearish"; signal_color = "#e63946"; signal_emoji = "🔴"
-        else:
-            signal_label = "Neutral"; signal_color = "#ff9800"; signal_emoji = "🟡"
-
-        st.markdown(
-            f'<div style="background:{signal_color}12; border-left:4px solid {signal_color}; '
-            f'padding:16px 20px; border-radius:8px; margin-bottom:16px;">'
-            f'<span style="font-size:1.3rem; font-weight:700; color:{signal_color};">{signal_emoji} Composite Signal: {signal_label}</span><br>'
-            f'<span style="color:#555; font-size:0.92rem;">'
-            f'Score = (R² × direction) + (P(profit) − 0.5) = '
-            f'({_ml_r["r2"]:.3f} × {predicted_dir}) + ({_mc["prob_profit"]/100:.3f} − 0.5) = '
-            f'<b>{composite:+.3f}</b></span></div>',
-            unsafe_allow_html=True)
-
-        # Mini 30-day fan chart
-        st.markdown("**30-Day Monte Carlo Fan Chart**")
-        np.random.seed(99)
-        _n_sim = 1000; _n_days = 30
-        _dr = np.random.normal(_mc["mu"], _mc["sigma"], size=(_n_days, _n_sim))
-        _pp = np.zeros((_n_days + 1, _n_sim))
-        _pp[0] = _mc["last_close"]
-        for _t in range(1, _n_days + 1):
-            _pp[_t] = _pp[_t - 1] * (1 + _dr[_t - 1])
-
-        _days = np.arange(_n_days + 1)
-        _med  = np.median(_pp, axis=1)
-        _p5   = np.percentile(_pp, 5,  axis=1)
-        _p95  = np.percentile(_pp, 95, axis=1)
-
-        fig_mini = go.Figure()
-        for _i in range(min(80, _n_sim)):
-            fig_mini.add_trace(go.Scatter(
-                x=_days, y=_pp[:, _i], mode="lines",
-                line=dict(color="rgba(100,149,237,0.06)", width=0.5),
-                showlegend=False, hoverinfo="skip"))
-        fig_mini.add_trace(go.Scatter(
-            x=list(_days) + list(_days[::-1]),
-            y=list(_p95) + list(_p5[::-1]),
-            fill="toself", fillcolor="rgba(0,210,255,0.13)",
-            line=dict(color="rgba(0,0,0,0)"), name="90% Band", hoverinfo="skip"))
-        fig_mini.add_trace(go.Scatter(
-            x=_days, y=_med, mode="lines", name="Median",
-            line=dict(color="#ff9800", width=2),
-            hovertemplate="Day %{x}: %{y:.2f}<extra>Median</extra>"))
-        fig_mini.add_trace(go.Scatter(
-            x=_days, y=_p5, mode="lines", name="5th Pctl",
-            line=dict(color="#ef5350", width=1, dash="dash"),
-            hovertemplate="Day %{x}: %{y:.2f}<extra>5th</extra>"))
-        fig_mini.add_trace(go.Scatter(
-            x=_days, y=_p95, mode="lines", name="95th Pctl",
-            line=dict(color="#26a69a", width=1, dash="dash"),
-            hovertemplate="Day %{x}: %{y:.2f}<extra>95th</extra>"))
-        fig_mini.add_trace(go.Scatter(
-            x=[1], y=[_ml_r["last_pred"]],
-            mode="markers", name="ML Prediction (Day 1)",
-            marker=dict(color="#d500f9", size=12, symbol="diamond",
-                        line=dict(width=2, color="#7b1fa2")),
-            hovertemplate="ML Predicted: %{y:.2f}<extra></extra>"))
-        fig_mini.update_layout(
-            **PLOTLY_LAYOUT,
-            title="<b>30-Day Monte Carlo Fan Chart</b> — 1,000 simulations",
-            xaxis_title="Trading Days", yaxis_title="Simulated Price", height=380)
-        st.plotly_chart(fig_mini, use_container_width=True)
-
-        # Risk-Reward row
-        st.markdown("**Risk-Reward Summary**")
-        rr1, rr2, rr3, rr4 = st.columns(4)
-        rr1.metric("Best Case (95th)", fmt_price(_mc['best5'], currency_symbol),
-                   f"{((_mc['best5'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
-        rr2.metric("Expected Case", fmt_price(consensus, currency_symbol),
-                   f"{((consensus - _ml_r['last_close']) / _ml_r['last_close'] * 100):+.2f}%")
-        rr3.metric("Worst Case (5th)", fmt_price(_mc['worst5'], currency_symbol),
-                   f"{((_mc['worst5'] - _mc['last_close']) / _mc['last_close'] * 100):+.2f}%")
-        rr4.metric("Uncertainty (RMSE)", fmt_price(_ml_r['rmse'], currency_symbol),
-                   help="ML model typical prediction error in price units.")
-
-        st.markdown("---")
-
     # ── 7. PLAIN ENGLISH VERDICT ──────────────────────────────────────
     # Build verdict
     verdict_parts = []
@@ -576,15 +451,13 @@ if uploaded_file:
     elif vol_label == "Low":
         verdict_parts.append("Recent volatility is <b>lower than average</b> — the stock has been relatively calm.")
 
-    if ml_available and diff_p > 0:
-        verdict_parts.append(f"The ML model predicts the next close at <b>{fmt_price(next_p, currency_symbol)}</b> (slightly up), "
-                             f"with R² = {r2_ml:.3f} accuracy.")
-    elif ml_available:
-        verdict_parts.append(f"The ML model predicts the next close at <b>{fmt_price(next_p, currency_symbol)}</b> (slightly down), "
-                             f"with R² = {r2_ml:.3f} accuracy.")
+    if summary_ml:
+        predicted = fmt_price(summary_ml["prediction"], currency_symbol)
+        as_of = summary_ml["as_of"]
+        verdict_parts.append(f"The regression estimate after <b>{as_of:%Y-%m-%d}</b> is <b>{predicted}</b>.")
 
     if _mc:
-        verdict_parts.append(f"Monte Carlo simulations show a <b>{_mc['prob_profit']:.0f}% chance of profit</b>, "
+        verdict_parts.append(f"<b>{_mc['prob_profit']:.0f}% of Monte Carlo paths end above the starting price</b>, "
                              f"with the expected price at <b>{fmt_price(_mc['expected'], currency_symbol)}</b>.")
 
     verdict_parts.append("<br><br>⚠️ <i>This analysis is based purely on historical data and statistics — "
@@ -617,7 +490,6 @@ if uploaded_file:
             "| Histogram & Box Plot | Return Distribution | Descriptive Statistics |\n"
             "| Correlation Matrix | Feature Relationships | Correlation Coefficients |\n"
             "| Skewness & Kurtosis | Distribution Shape | Higher-Order Moments |\n"
-            "| Composite Signal | ML + MC Forecast | Weighted Scoring, Confidence Intervals |\n"
             "| StandardScaler | Feature Normalization | Z-Score Standardization |\n"
             "| Composite Health Score | Summary Dashboard | Multi-factor Index |"
         )

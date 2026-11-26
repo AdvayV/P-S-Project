@@ -4,8 +4,7 @@ import numpy as np
 import heapq
 import time
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from forecasting import evaluate_next_session
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from sklearn.preprocessing import StandardScaler
@@ -268,7 +267,8 @@ def compute_rsi(series, period=14):
     gain  = delta.clip(lower=0).rolling(window=period).mean()
     loss  = (-delta.clip(upper=0)).rolling(window=period).mean()
     rs    = gain / loss.replace(0, np.nan)
-    return 100 - (100 / (1 + rs))
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.mask(loss.eq(0) & gain.gt(0), 100.0).mask(loss.eq(0) & gain.eq(0), 50.0)
 
 def detect_currency_symbol(identifier):
     val = (identifier or "").upper().strip()
@@ -483,6 +483,7 @@ def render_stock_selector(tab_key):
 
 
 # Modular tab integration
+st.caption("Educational analysis of historical data and model assumptions. Use the CSV date as the forecast's as-of date.")
 tab_live, tab_csv, tab_ml, tab_stats, tab_mc, tab_anomaly, tab_summary = st.tabs([
     "📡 Live Chart", "📂 CSV Analysis", "🤖 ML Prediction", "📊 Statistics",
     "🎲 Monte Carlo", "🔍 Anomaly Detection", "📋 Summary"
